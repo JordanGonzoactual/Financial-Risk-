@@ -1,2 +1,6 @@
 
 .vscode/claudesync.json
+/Data/Loan.csv
+/.dvc/cache
+/dvc.lock
+*.tmp
