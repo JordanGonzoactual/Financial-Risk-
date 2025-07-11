@@ -1,6 +1,21 @@
-
 .vscode/claudesync.json
 /Data/Loan.csv
 /.dvc/cache
 /dvc.lock
 *.tmp
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+
+# Log files
+Logs/
+*.log
+
+# Results
+Results/
+
+# Other
+*.lnk
+/Data/processed/
+/Config/
