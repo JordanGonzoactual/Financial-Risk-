@@ -19,3 +19,4 @@ Results/
 *.lnk
 /Data/processed/
 /Config/
+mlruns/
