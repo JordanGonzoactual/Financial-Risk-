@@ -5,21 +5,26 @@ from sklearn.compose import ColumnTransformer
 from typing import List, Dict, Any, Optional, Union
 
 # Import custom transformers
-from transformers.date_transformer import DateTransformer
-from transformers.crafted_features_transformer import CraftedFeaturesTransformer
-from transformers.dtype_optimizer import DtypeOptimizer
-from transformers.polynomial_transformer import PolynomialTransformer
-from transformers.encoding_transformer import EncodingTransformer
-from transformers.column_dropper import ColumnDropper
+import logging
+from .transformers.base_transformer import BaseTransformer
+from .transformers.date_transformer import DateTransformer
+from .transformers.crafted_features_transformer import CraftedFeaturesTransformer
+from .transformers.dtype_optimizer import DtypeOptimizer
+from .transformers.polynomial_transformer import PolynomialTransformer
+from .transformers.encoding_transformer import EncodingTransformer
+from .transformers.column_dropper import ColumnDropper
+
+# Configure logger for this module
+logger = logging.getLogger(__name__)
 
 
 def identify_column_types(df: pd.DataFrame) -> Dict[str, List[str]]:
     """
     Identify numerical, categorical, date and other columns in the dataframe.
-    
+
     Args:
         df: Input dataframe
-        
+
     Returns:
         Dictionary with column types as keys and lists of column names as values
     """
@@ -29,20 +34,31 @@ def identify_column_types(df: pd.DataFrame) -> Dict[str, List[str]]:
         'date': [],
         'other': []
     }
-    
+
     for col in df.columns:
-        if pd.api.types.is_numeric_dtype(df[col]):
-            if df[col].nunique() < 10:  # Small number of unique values suggests categorical
+        col_dtype = df[col].dtype
+
+        # 1. Date Identification: Check for datetime dtype or object type with a date-like name.
+        if pd.api.types.is_datetime64_any_dtype(col_dtype) or \
+           (pd.api.types.is_object_dtype(col_dtype) and ('date' in col.lower() or col.lower() == 'applicationdate')):
+            column_types['date'].append(col)
+
+        # 2. Numerical Identification
+        elif pd.api.types.is_numeric_dtype(col_dtype):
+            if df[col].nunique() < 10:  # Treat low-cardinality numerics as categorical
                 column_types['categorical'].append(col)
             else:
                 column_types['numerical'].append(col)
-        elif pd.api.types.is_datetime64_dtype(df[col]):
-            column_types['date'].append(col)
-        elif df[col].nunique() < df.shape[0] * 0.05:  # Less than 5% unique values
+
+        # 3. Categorical Identification for remaining columns
+        elif df[col].nunique() < df.shape[0] * 0.05:
             column_types['categorical'].append(col)
+
+        # 4. Fallback for other types (e.g., high-cardinality strings)
         else:
             column_types['other'].append(col)
-            
+
+    logger.info(f"Identified column types: {column_types}")
     return column_types
 
 
@@ -52,7 +68,8 @@ def create_preprocessing_pipeline(
     date_features: Optional[List[str]] = None,
     columns_to_drop: Optional[List[str]] = None,
     poly_degree: int = 2,
-    encoding_method: str = 'onehot'
+    encoding_method: str = 'onehot',
+    verbose: bool = False
 ) -> Pipeline:
     """
     Create a complete preprocessing pipeline.
@@ -75,40 +92,68 @@ def create_preprocessing_pipeline(
 
     # Step 1: Conditionally drop specified columns first
     if columns_to_drop:
-        pipeline_steps.append(('column_dropper', ColumnDropper(columns_to_drop=columns_to_drop)))
+        pipeline_steps.append(('column_dropper', ColumnDropper(
+            columns_to_drop=columns_to_drop,
+            verbose=verbose
+        )))
 
-    # Step 2: Extract features from date columns, with a fallback to a default column name
-    pipeline_steps.append(('date_features', DateTransformer(date_column=date_features[0] if date_features else 'ApplicationDate')))
+    # Step 2: Always process date features, defaulting to 'ApplicationDate'
+    pipeline_steps.append(('date_features', DateTransformer(
+        date_column='ApplicationDate',
+        verbose=verbose
+    )))
 
-    # Step 3: Create crafted features from existing ones
-    pipeline_steps.append(('crafted_features', CraftedFeaturesTransformer()))
+    # Step 3: Create crafted features, handling division by zero by returning 0
+    pipeline_steps.append(('crafted_features', CraftedFeaturesTransformer(
+        zero_division_mode="zero",
+        verbose=verbose
+    )))
 
-    # Step 4: Optimize data types for memory efficiency before transformations
-    pipeline_steps.append(('first_dtype_optimizer', DtypeOptimizer()))
+
 
     # Step 5: Generate polynomial features for all available numerical columns
     # The transformer will automatically identify numerical columns at runtime.
     pipeline_steps.append(('polynomial_features', PolynomialTransformer(
-        target_features=['AnnualIncome', 'CreditScore', 'LoanAmount', 'TotalAssets', 'TotalLiabilities', 'NetWorth'],
-        degree=poly_degree
+        degree=poly_degree,
+        verbose=verbose
     )))
 
     # Step 6: Encode categorical features
     if categorical_features:
-        pipeline_steps.append(('encoding_features', EncodingTransformer()))
+        pipeline_steps.append(('encoding_features', EncodingTransformer(verbose=verbose)))
 
     # Step 7: Final data type optimization after all transformations
-    pipeline_steps.append(('final_dtype_optimizer', DtypeOptimizer()))
+    pipeline_steps.append(('final_dtype_optimizer', DtypeOptimizer(verbose=verbose)))
 
-    # Create and return the final pipeline object
+    # Create the final pipeline object
     pipeline = Pipeline(pipeline_steps)
-    
+
+    # --- Pipeline Validation ---
+    # Ensure all core transformers are present.
+    pipeline_step_names = [step[0] for step in pipeline.steps]
+    required_steps = {
+        'date_features',
+        'crafted_features',
+        'polynomial_features',
+        'final_dtype_optimizer'
+    }
+
+    missing_steps = required_steps - set(pipeline_step_names)
+    if missing_steps:
+        error_msg = f"Pipeline validation failed. Missing required steps: {', '.join(missing_steps)}"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+
+    logger.info("Successfully built and validated preprocessing pipeline.")
+    logger.info(f"Pipeline steps: {pipeline_step_names}")
+
     return pipeline
 
 
 def build_pipeline_from_dataframe(
     df: pd.DataFrame, 
-    columns_to_drop: Optional[List[str]] = None, 
+    columns_to_drop: Optional[List[str]] = None,
+    verbose: bool = False, 
     **kwargs
 ) -> Pipeline:
     """
@@ -132,6 +177,7 @@ def build_pipeline_from_dataframe(
             categorical_features=column_types.get('categorical'),
             date_features=column_types.get('date'),
             columns_to_drop=columns_to_drop,
+            verbose=verbose,
             **kwargs
         )
     except Exception as e:
