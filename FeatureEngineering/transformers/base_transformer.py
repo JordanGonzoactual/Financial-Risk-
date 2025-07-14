@@ -4,8 +4,9 @@ import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from typing import List, Union, Optional
 from pandas.api.types import is_numeric_dtype
+from abc import ABC, abstractmethod
 
-class BaseTransformer(BaseEstimator, TransformerMixin):
+class BaseTransformer(BaseEstimator, TransformerMixin, ABC):
     """
     Base class for all transformers in the feature engineering pipeline.
     Implements common functionality for validation, logging, and data type optimization.
@@ -114,28 +115,54 @@ class BaseTransformer(BaseEstimator, TransformerMixin):
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """
-        Transform the input data. Must be implemented by subclasses.
-        
-        Parameters
-        ----------
-        X : pd.DataFrame
-            Input data to transform
-            
-        Returns
-        -------
-        pd.DataFrame
-            Transformed data
-        
-        Raises
-        ------
-        NotImplementedError
-            If not implemented by subclass
+        Main transform method with built-in validation, error handling, and index alignment.
+
+        This method wraps the `_transform` method, which must be implemented by subclasses.
+        It ensures that the DataFrame's index is preserved and handles exceptions gracefully.
         """
         if not self.is_fitted_:
             raise ValueError(f"{self.__class__.__name__} is not fitted yet.")
-        
-        X = self._validate_input(X)
-        raise NotImplementedError("Transform method must be implemented by subclass")
+
+        X_validated = self._validate_input(X)
+        original_index = X_validated.index
+
+        try:
+            X_transformed = self._transform(X_validated)
+        except Exception as e:
+            self.logger.error(f"Error during transformation in {self.__class__.__name__}: {e}")
+            # Return a DataFrame with the original index and no columns to signal failure
+            return pd.DataFrame(index=original_index)
+
+        # --- Index Alignment Validation ---
+        if not X_transformed.index.equals(original_index):
+            self.logger.warning(
+                f"Index of transformed data in {self.__class__.__name__} does not match original index. "
+                f"Realigning to original index. This may indicate an issue in the transformer."
+            )
+            X_transformed = X_transformed.reindex(original_index)
+
+        self.feature_names_out_ = list(X_transformed.columns)
+        self._log_transformation(
+            f"Successfully transformed data. Output shape: {X_transformed.shape}"
+        )
+        return X_transformed
+
+    @abstractmethod
+    def _transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """
+        The core transformation logic to be implemented by subclasses.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Input data to transform.
+
+        Returns
+        -------
+        pd.DataFrame
+            Transformed data.
+        """
+        pass
 
     def get_feature_names_out(self, input_features=None) -> List[str]:
         """
