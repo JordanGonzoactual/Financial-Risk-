@@ -1,34 +1,33 @@
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import PolynomialFeatures
-import logging
-from typing import List, Optional, Union
+from typing import List, Optional
+from .base_transformer import BaseTransformer
 
-class PolynomialTransformer:
+
+class PolynomialTransformer(BaseTransformer):
     """
     Custom transformer that creates polynomial features for specific numerical columns
     while preserving other columns in the dataset.
     """
-    
+
     def __init__(self, 
                  target_features: Optional[List[str]] = None, 
                  degree: int = 2, 
                  include_bias: bool = False, 
-                 interaction_only: bool = False):
+                 interaction_only: bool = False,
+                 verbose: bool = False):
         """
         Initialize the PolynomialTransformer.
         
-        Parameters:
-        -----------
-        target_features : Optional[List[str]], default=None
-            List of column names to transform. If None, all numerical columns will be used.
-        degree : int, default=2
-            The degree of the polynomial features.
-        include_bias : bool, default=False
-            If True, include a bias column (all 1s).
-        interaction_only : bool, default=False
-            If True, only include interaction features.
+        Args:
+            target_features: List of column names to transform. If None, defaults will be used.
+            degree: The degree of the polynomial features.
+            include_bias: If True, include a bias column (all 1s).
+            interaction_only: If True, only include interaction features.
+            verbose: If True, enables detailed logging.
         """
+        super().__init__(verbose=verbose)
         self.target_features = target_features
         self.degree = degree
         self.include_bias = include_bias
@@ -40,132 +39,91 @@ class PolynomialTransformer:
             include_bias=self.include_bias
         )
         
-        self.available_features = []
-        self.poly_feature_names = []
-        
+        self.available_features_ = []
+        self.poly_feature_names_ = []
+
     def fit(self, X: pd.DataFrame, y=None):
         """
-        Fit the transformer. If target_features is None, it identifies all numerical
-        columns. It then fits the polynomial transformer on the available target features.
-        
-        Parameters:
-        -----------
-        X : pd.DataFrame
-            The input data.
-        y : ignored
-            Not used, for API consistency.
-            
-        Returns:
-        --------
-        self : object
-            Returns self.
+        Fit the transformer, identify target columns, and set up feature names.
         """
+        super().fit(X, y)
+        self._log_transformation("Fitting PolynomialTransformer...")
+
         if self.target_features is None:
             self.target_features = ['AnnualIncome', 'CreditScore', 'LoanAmount', 'TotalAssets', 'TotalLiabilities', 'NetWorth']
-            logging.info(f"No target features specified. Defaulting to: {self.target_features}")
+            self._log_transformation(f"No target features specified. Defaulting to: {self.target_features}")
 
-        self.available_features = [col for col in self.target_features if col in X.columns]
+        self.available_features_ = [col for col in self.target_features if col in self.feature_names_in_]
         
-        missing_features = set(self.target_features) - set(self.available_features)
-        for feature in missing_features:
-            logging.warning(f"Feature '{feature}' not found in the input data and will be ignored.")
+        missing_features = set(self.target_features) - set(self.available_features_)
+        if missing_features:
+            self._log_transformation(f"Features not found and will be ignored: {missing_features}", level='warning')
         
-        if not self.available_features:
-            logging.warning("None of the specified target features are available in the input data.")
+        if not self.available_features_:
+            self._log_transformation("No target features available in the input data.", level='warning')
+            self.feature_names_out_ = self.feature_names_in_
             return self
         
-        self.poly.fit(X[self.available_features])
-        self.poly_feature_names = self._generate_feature_names()
+        self.poly.fit(X[self.available_features_])
+        self.poly_feature_names_ = self._generate_feature_names()
         
+        # Define final output feature names
+        non_target_cols = [col for col in self.feature_names_in_ if col not in self.available_features_]
+        self.feature_names_out_ = non_target_cols + self.poly_feature_names_
+
+        self._log_transformation("PolynomialTransformer fitted successfully.")
         return self
-    
-    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+
+    def _transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """
-        Transform the data by applying polynomial features to target columns
-        and preserving other columns.
-        
-        Parameters:
-        -----------
-        X : pd.DataFrame
-            The input data
-            
-        Returns:
-        --------
-        pd.DataFrame
-            Transformed data with polynomial features
+        Apply polynomial features to target columns and preserve others.
         """
-        if not self.available_features:
-            return X.copy()
+        if not self.available_features_:
+            return X
+
+        self._log_transformation(f"Applying polynomial features to {self.available_features_}...")
         
         # Separate target and non-target features
-        target_data = X[self.available_features]
-        non_target_cols = [col for col in X.columns if col not in self.available_features]
+        target_data = X[self.available_features_]
+        non_target_cols = [col for col in X.columns if col not in self.available_features_]
         non_target_data = X[non_target_cols].copy() if non_target_cols else pd.DataFrame(index=X.index)
         
         # Transform target features
         poly_features = self.poly.transform(target_data)
         
-        # Convert to DataFrame with meaningful column names
         poly_df = pd.DataFrame(
             data=poly_features,
-            columns=self.poly_feature_names,
+            columns=self.poly_feature_names_,
             index=X.index
         )
         
-        # Optimize data types
-        for col in poly_df.columns:
-            if poly_df[col].dtype == np.float64:
-                poly_df[col] = pd.to_numeric(poly_df[col], downcast='float')
-        
         # Concatenate non-target and polynomial features
         result = pd.concat([non_target_data, poly_df], axis=1)
+        self._log_transformation("Polynomial features applied successfully.")
         
         return result
-    
+
     def _generate_feature_names(self) -> List[str]:
         """
         Generate meaningful feature names for polynomial features.
-        
-        Returns:
-        --------
-        List[str]
-            List of feature names for the polynomial features
         """
-        # Get the raw feature names from sklearn
-        raw_feature_names = self.poly.get_feature_names_out(self.available_features)
+        raw_feature_names = self.poly.get_feature_names_out(self.available_features_)
         
-        # Create more readable feature names
         readable_names = []
         for name in raw_feature_names:
             if name == '1':
                 readable_names.append('bias')
                 continue
+            
+            # Simplified naming for clarity
+            name = name.replace(' ', '*')
+            readable_names.append(name)
                 
-            terms = name.split()
-            if len(terms) == 1:
-                # Single feature with power 1
-                readable_names.append(name)
-            else:
-                feature_counts = {}
-                for term in terms:
-                    feature = term.split('^')[0]
-                    feature_counts[feature] = feature_counts.get(feature, 0) + 1
-                
-                parts = []
-                for feature, count in feature_counts.items():
-                    if count == 1:
-                        parts.append(feature)
-                    else:
-                        parts.append(f"{feature}^{count}")
-                
-                readable_names.append('_'.join(parts))
-        
         return readable_names
     
     def get_feature_names_out(self, input_features=None) -> np.ndarray:
         """
         Get output feature names for transformation.
-        
         Parameters:
         -----------
         input_features : ignored
