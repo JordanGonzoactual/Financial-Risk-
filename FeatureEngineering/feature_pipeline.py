@@ -170,12 +170,26 @@ class FeaturePipeline:
         else:
             df = data
 
+        # Check for NaNs
         nan_total = df.isna().sum().sum()
         if nan_total > 0:
             nan_counts_per_col = df.isna().sum()
-            cols_with_nans = nan_counts_per_col[nan_counts_per_col > 0]
-            self.logger.warning(f"Total NaN values found: {nan_total}")
-            self.logger.warning(f"Columns containing NaN values:\n{cols_with_nans}")
+            nan_cols = nan_counts_per_col[nan_counts_per_col > 0]
+            self.logger.warning(f'Found {nan_total} NaNs in {len(nan_cols)} columns after {step_name}.')
+            for col, count in nan_cols.items():
+                self.logger.warning(f'  - Column "{col}": {count} NaNs ({count / len(df) * 100:.2f}%)')
+
+        # Check for excessive zeros
+        zero_counts_per_col = (df == 0).sum()
+        zero_cols = zero_counts_per_col[zero_counts_per_col > 0]
+        if not zero_cols.empty:
+            self.logger.info(f'Found zeros in {len(zero_cols)} columns after {step_name}.')
+            for col, count in zero_cols.items():
+                zero_percentage = (count / len(df)) * 100
+                if zero_percentage > 10:
+                    self.logger.warning(f'  - Column "{col}": {count} zeros ({zero_percentage:.2f}%) - EXCEEDS 10% THRESHOLD')
+                else:
+                    self.logger.info(f'  - Column "{col}": {count} zeros ({zero_percentage:.2f}%)')
         else:
             self.logger.info("No NaN values found.")
 
@@ -208,8 +222,13 @@ class FeaturePipeline:
             X_train_processed = X_intermediate
 
             # --- Transform test data using the fully fitted pipeline ---
-            self.logger.info("\n--- Transforming TEST data using the fitted pipeline ---")
-            X_test_processed = self.preprocessing_pipeline.transform(self.X_test)
+            self.logger.info("\n--- Inspecting intermediate steps on TEST data ---")
+            X_test_intermediate = self.X_test.copy()
+            for name, transformer in self.preprocessing_pipeline.steps:
+                self.logger.info(f"Transforming test data with step: {name}")
+                X_test_intermediate = transformer.transform(X_test_intermediate)
+                self._log_nan_info(X_test_intermediate, f"After '{name}' on test data")
+            X_test_processed = X_test_intermediate
             self.logger.info("Test data transformation complete.")
             
             self.logger.info(f"Processed training data shape: {X_train_processed.shape}")
