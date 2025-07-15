@@ -20,3 +20,9 @@ Results/
 /Data/processed/
 /Config/
 mlruns/
+
+# Debugging scripts
+debug_data.py
+
+# HTML reports
+*.html
