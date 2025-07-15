@@ -4,7 +4,10 @@ import logging
 import json
 import time
 import argparse
+import subprocess
+import requests
 from datetime import datetime
+#from dotenv import load_dotenv
 
 import optuna
 import xgboost as xgb
@@ -25,11 +28,15 @@ sys.path.insert(0, project_root)
 sys.path.append(os.path.join(project_root, 'FeatureEngineering'))
 
 from data_loader import load_processed_data
+from start_mlflow_server import start_mlflow_server
 from Models.hyperparameter_tuning.tune_step1_tree_complexity import run_tree_complexity_tuning
 from Models.hyperparameter_tuning.tune_step2_gamma import run_gamma_tuning
 from Models.hyperparameter_tuning.tune_step3_sampling import run_sampling_tuning
 from Models.hyperparameter_tuning.tune_step4_regularization import run_regularization_tuning
 from Models.hyperparameter_tuning.tune_step5_learning_rate import run_learning_rate_tuning
+
+# Load environment variables from .env file
+# load_dotenv()
 
 # MLflow Configuration
 MLFLOW_CONFIG = {
@@ -62,6 +69,16 @@ class XGBoostOptimizationPipeline:
         self.X_test, self.y_test = None, None
         self.base_params = None
         self.start_time = None
+
+    def _ensure_mlflow_server_running(self):
+        """Ensures the MLflow server is running by calling the startup script."""
+        logging.info("Ensuring MLflow server is running...")
+        result = start_mlflow_server()
+        logging.info(result)
+        # If the server was just started, wait a moment for it to initialize
+        if "startup process initiated" in result:
+            logging.info("Waiting for MLflow server to initialize...")
+            time.sleep(10)
 
 
 
@@ -294,7 +311,8 @@ class XGBoostOptimizationPipeline:
             logging.info("No optimization state file to reset.")
 
     def run(self):
-        """Main method to run the entire optimization pipeline."""
+        """Main method to run the entire optimization pipeline.""" 
+        self._ensure_mlflow_server_running()
         self.start_time = time.time()
 
         if self.reset:
@@ -354,7 +372,7 @@ if __name__ == '__main__':
 
     # Configuration
     DATA_PATH = os.path.join(project_root, 'Data', 'processed')
-    TRIALS_PER_STEP = 50 # Adjust as needed
+    TRIALS_PER_STEP = 3 # Adjust as needed
 
     try:
         pipeline = XGBoostOptimizationPipeline(

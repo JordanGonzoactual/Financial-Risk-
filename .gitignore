@@ -26,3 +26,5 @@ debug_data.py
 
 # HTML reports
 *.html
+.env
+.env
