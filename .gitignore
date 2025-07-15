@@ -21,6 +21,11 @@ Results/
 /Config/
 mlruns/
 
+# MLflow artifacts
+mlflow.db
+mlflow-artifacts/
+model_registry.db
+
 # Debugging scripts
 debug_data.py
 
