@@ -1,11 +1,12 @@
 import os
 import sys
 import mlflow
-from mlflow.tracking import MlflowClient
 import pandas as pd
 from sklearn.metrics import mean_squared_error
 import numpy as np
 import logging
+import matplotlib.pyplot as plt
+import scipy.stats as stats
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -16,84 +17,20 @@ sys.path.append(project_root)
 
 from FeatureEngineering.data_loader import load_processed_data
 
+mlflow.set_tracking_uri("http://localhost:5000")
+
 # --- Configuration ---
 MLFLOW_EXPERIMENT_NAME = "XGBoost_Risk_Model"
 REPORTS_DIR = os.path.join(os.path.dirname(__file__), 'reports')
-MODEL_NAME = "xgboost-risk-model-final"
+MODEL_NAME = "xgboost-final-model"
 
 # Ensure the reports directory exists
 os.makedirs(REPORTS_DIR, exist_ok=True)
 
-def find_and_register_best_model():
-    """Finds the best trial from the latest pipeline run and registers the model."""
-    logging.info(f"--- Finding and Registering Best Model from Experiment: {MLFLOW_EXPERIMENT_NAME} ---")
-    
-    try:
-        mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
-        client = MlflowClient()
-
-        # 1. Find the most recent 'full_optimization_pipeline' parent run
-        parent_runs = mlflow.search_runs(
-            filter_string="tags.`mlflow.runName` = 'full_optimization_pipeline'",
-            order_by=["start_time DESC"],
-            max_results=1
-        )
-        if parent_runs.empty:
-            logging.error("No 'full_optimization_pipeline' run found. Please run the main pipeline first.")
-            return None, None
-
-        parent_run_id = parent_runs.iloc[0].run_id
-        logging.info(f"Found latest parent pipeline run with ID: {parent_run_id}")
-
-        # 2. Find the best nested trial run within that parent run
-        trial_runs = mlflow.search_runs(
-            filter_string=f"tags.`mlflow.parentRunId` = '{parent_run_id}'",
-            order_by=["metrics.mean_cv_rmse ASC"],
-            max_results=1
-        )
-        if trial_runs.empty:
-            logging.error(f"No trial runs found for parent run {parent_run_id}. The pipeline might have failed.")
-            return None, None
-
-        best_trial_run = trial_runs.iloc[0]
-        best_run_id = best_trial_run.run_id
-        best_rmse = best_trial_run['metrics.mean_cv_rmse']
-        logging.info(f"Found best trial run {best_run_id} with Mean CV RMSE: {best_rmse:.6f}")
-
-        # 3. Register the model from the best trial
-        model_uri = f"runs:/{best_run_id}/xgboost-model"
-        logging.info(f"Registering model from URI: {model_uri}")
-
-        registered_model = mlflow.register_model(model_uri=model_uri, name=MODEL_NAME)
-        logging.info(f"Successfully registered model '{MODEL_NAME}' as Version {registered_model.version}.")
-
-        # 4. Add a description to the registered model version
-        description = (
-            f"Best model from the full optimization pipeline run {parent_run_id}.\n"
-            f"Source trial run ID: {best_run_id}.\n"
-            f"Mean CV RMSE: {best_rmse:.6f}."
-        )
-        client.update_model_version(
-            name=MODEL_NAME,
-            version=registered_model.version,
-            description=description
-        )
-        logging.info(f"Added description to model version {registered_model.version}.")
-        
-        return MODEL_NAME, registered_model.version
-
-    except Exception as e:
-        logging.error(f"An unexpected error occurred during model registration: {e}", exc_info=True)
-        return None, None
-
-
-def generate_performance_report(model_name, model_version):
-    """Loads the registered model and evaluates its performance on the test set."""
-    if not model_name or not model_version:
-        logging.error("Invalid model name or version provided. Skipping performance report.")
-        return
-
-    logging.info(f"--- Generating Performance Report for {model_name} Version {model_version} ---")
+def generate_performance_report():
+    """Loads the 'challenger' model, evaluates performance, and generates diagnostic plots."""
+    model_alias = "champion"
+    logging.info(f"--- Generating Performance Report for {MODEL_NAME} with Alias '{model_alias}' ---")
     
     try:
         # Load test data
@@ -101,8 +38,8 @@ def generate_performance_report(model_name, model_version):
         _, X_test, _, y_test = load_processed_data(data_path)
         logging.info(f"Test data loaded. Shape: {X_test.shape}")
 
-        # Load the registered model
-        model_uri = f"models:/{model_name}/{model_version}"
+        # Load the registered model using its alias
+        model_uri = f"models:/{MODEL_NAME}@{model_alias}"
         logging.info(f"Loading model from URI: {model_uri}")
         model = mlflow.pyfunc.load_model(model_uri)
 
@@ -114,25 +51,85 @@ def generate_performance_report(model_name, model_version):
         # Save the performance metric to a file
         report_path = os.path.join(REPORTS_DIR, 'final_model_performance.txt')
         with open(report_path, 'w') as f:
-            f.write(f"Performance Report for Model: {model_name}\n")
-            f.write(f"Version: {model_version}\n")
+            f.write(f"Performance Report for Model: {MODEL_NAME}\n")
+            f.write(f"Alias: {model_alias}\n")
             f.write(f"Test Set RMSE: {test_rmse:.6f}\n")
         logging.info(f"Performance report saved to {report_path}")
+
+        # --- Generate Diagnostic Plots ---
+        logging.info("Generating diagnostic plots...")
+        residuals = y_test - predictions
+
+        # 1. Q-Q Plot of Residuals
+        plt.figure(figsize=(8, 6))
+        stats.probplot(residuals, dist="norm", plot=plt)
+        plt.title('Q-Q Plot of Residuals')
+        plt.xlabel('Theoretical Quantiles')
+        plt.ylabel('Sample Quantiles')
+        qq_plot_path = os.path.join(REPORTS_DIR, 'residuals_qq_plot.png')
+        plt.savefig(qq_plot_path)
+        plt.close()
+        logging.info(f"Saved Q-Q plot to {qq_plot_path}")
+
+        # 2. Residuals vs. Predicted Values
+        plt.figure(figsize=(8, 6))
+        plt.scatter(predictions, residuals, alpha=0.5)
+        plt.axhline(y=0, color='r', linestyle='--')
+        plt.title('Residuals vs. Predicted Values')
+        plt.xlabel('Predicted Values')
+        plt.ylabel('Residuals')
+        residuals_plot_path = os.path.join(REPORTS_DIR, 'residuals_vs_predicted_plot.png')
+        plt.savefig(residuals_plot_path)
+        plt.close()
+        logging.info(f"Saved residuals plot to {residuals_plot_path}")
+
+        # 3. Predicted vs. Actual Values
+        plt.figure(figsize=(8, 6))
+        plt.scatter(y_test, predictions, alpha=0.5)
+        plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2)
+        plt.title('Predicted vs. Actual Values')
+        plt.xlabel('Actual Values')
+        plt.ylabel('Predicted Values')
+        pred_actual_path = os.path.join(REPORTS_DIR, 'predicted_vs_actual_plot.png')
+        plt.savefig(pred_actual_path)
+        plt.close()
+        logging.info(f"Saved predicted vs. actual plot to {pred_actual_path}")
+
+        # 4. Feature Importance Plot
+        try:
+            # Load the model using the XGBoost flavor for direct access to feature importances
+            logging.info("Loading model with mlflow.xgboost to get feature importances.")
+            xgb_model = mlflow.xgboost.load_model(model_uri)
+
+            # Create a DataFrame for feature importances
+            importances = pd.DataFrame({
+                'feature': X_test.columns,
+                'importance': xgb_model.feature_importances_
+            }).sort_values('importance', ascending=True)
+
+            # Plot feature importances
+            plt.figure(figsize=(12, 8))
+            plt.barh(importances['feature'], importances['importance'])
+            plt.title('Feature Importances')
+            plt.xlabel('Importance')
+            plt.ylabel('Features')
+            plt.tight_layout()
+            feature_importance_path = os.path.join(REPORTS_DIR, 'feature_importance_plot.png')
+            plt.savefig(feature_importance_path)
+            plt.close()
+            logging.info(f"Saved feature importance plot to {feature_importance_path}")
+
+        except Exception as e:
+            logging.error(f"Could not generate feature importance plot: {e}", exc_info=True)
 
     except Exception as e:
         logging.error(f"Failed to generate performance report: {e}", exc_info=True)
 
 
 if __name__ == '__main__':
-    logging.info("Starting analysis of the XGBoost optimization pipeline...")
+    logging.info("Starting analysis of the XGBoost 'challenger' model...")
 
-    # 1. Find the best model from the entire pipeline and register it
-    model_name, model_version = find_and_register_best_model()
-
-    # 2. Generate a performance report for the newly registered model
-    if model_name and model_version:
-        generate_performance_report(model_name, model_version)
-    else:
-        logging.error("Analysis failed because the best model could not be registered.")
+    # Generate a performance report for the 'challenger' model
+    generate_performance_report()
 
     logging.info("\nAnalysis complete. Report saved to the 'Analysis/reports' directory.")

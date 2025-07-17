@@ -372,7 +372,7 @@ if __name__ == '__main__':
 
     # Configuration
     DATA_PATH = os.path.join(project_root, 'Data', 'processed')
-    TRIALS_PER_STEP = 3 # Adjust as needed
+    TRIALS_PER_STEP = 75 # Adjust as needed
 
     try:
         pipeline = XGBoostOptimizationPipeline(

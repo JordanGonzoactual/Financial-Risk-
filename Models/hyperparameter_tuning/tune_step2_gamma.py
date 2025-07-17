@@ -7,7 +7,6 @@ import optuna
 import xgboost as xgb
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import KFold
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 
@@ -15,10 +14,8 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(project_root)
 
-from FeatureEngineering.data_loader import load_processed_data
 
-
-def run_gamma_tuning(X_train, y_train, X_val, y_val, base_params, n_trials, parent_run_id, random_state=42):
+def run_gamma_tuning(X_train, X_val, y_train, y_val, base_params, n_trials, parent_run_id, random_state=42):
     """
     Performs the second step of hyperparameter tuning for gamma.
     """
@@ -32,13 +29,14 @@ def run_gamma_tuning(X_train, y_train, X_val, y_val, base_params, n_trials, pare
 
             params = {
                 'gamma': trial.suggest_float('gamma', 0, 5),
+                'early_stopping_rounds': 50,
                 **base_params
             }
             mlflow.log_params(params)
 
             # Train the model on the training set and evaluate on the validation set
             model = xgb.XGBRegressor(**params)
-            model.fit(X_train, y_train, eval_set=[(X_val, y_val)], early_stopping_rounds=50, verbose=False)
+            model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
 
             # Log the best iteration
             mlflow.log_metric("best_iteration", model.best_iteration)
