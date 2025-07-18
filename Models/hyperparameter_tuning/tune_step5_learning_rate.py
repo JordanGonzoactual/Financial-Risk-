@@ -59,8 +59,9 @@ def run_learning_rate_tuning(X_train, X_val, y_train, y_val, base_params, n_tria
             return rmse
 
     # Set up and run Optuna study
-    db_dir = os.path.dirname(os.path.abspath(__file__))
-    storage_name = f"sqlite:///{os.path.join(db_dir, 'xgboost_tuning.db')}"
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    db_path = os.path.join(project_root, 'db', 'xgboost_tuning.db')
+    storage_name = f"sqlite:///{db_path}"
     study_name = "step5_learning_rate_optimization"
     sampler = optuna.samplers.TPESampler(seed=random_state)
     pruner = optuna.pruners.MedianPruner(n_warmup_steps=5)

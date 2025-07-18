@@ -5,10 +5,9 @@ import logging
 # Configure basic logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Define the database path relative to this script's location
-DB_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_FILENAME = "xgboost_tuning.db"
-DB_PATH = os.path.join(DB_DIR, DB_FILENAME)
+# Define the database path relative to the project root
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+DB_PATH = os.path.join(PROJECT_ROOT, 'db', 'xgboost_tuning.db')
 STORAGE_URL = f"sqlite:///{DB_PATH}"
 
 # Define the sequence of studies to check
