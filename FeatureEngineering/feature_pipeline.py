@@ -10,6 +10,7 @@ class FeaturePipeline:
     def __init__(self, 
                  input_filepath,
                  output_dir='Data/processed',
+                 artifacts_dir='FeatureEngineering/artifacts',
                  test_size=0.2,
                  random_state=42,
                  target_column=None):
@@ -25,13 +26,15 @@ class FeaturePipeline:
         """
         self.input_filepath = input_filepath
         self.output_dir = output_dir
+        self.artifacts_dir = artifacts_dir
         self.test_size = test_size
         self.random_state = random_state
         self.target_column = target_column
         self.logger = self._setup_logger()
         
-        # Ensure output directory exists
+        # Ensure output and artifacts directories exist
         os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(artifacts_dir, exist_ok=True)
         
         self.data = None
         self.X_train = None
@@ -240,6 +243,51 @@ class FeaturePipeline:
             self.logger.error(f"Error processing data: {str(e)}")
             raise
     
+    def save_transformation_artifacts(self):
+        """
+        Save the fitted transformation components for the inference pipeline.
+        """
+        self.logger.info(f"Saving transformation artifacts to {self.artifacts_dir}")
+
+        try:
+            # Save the entire pipeline for auditing and debugging
+            with open(os.path.join(self.artifacts_dir, 'preprocessing_pipeline.pkl'), 'wb') as f:
+                pickle.dump(self.preprocessing_pipeline, f)
+
+            # Extract and save individual transformers
+            numeric_transformer = self.preprocessing_pipeline.named_steps['polynomial_features']
+            with open(os.path.join(self.artifacts_dir, 'numeric_scalers.pkl'), 'wb') as f:
+                pickle.dump(numeric_transformer, f)
+
+            categorical_transformer = self.preprocessing_pipeline.named_steps['encoding_features']
+            with open(os.path.join(self.artifacts_dir, 'categorical_encoders.pkl'), 'wb') as f:
+                pickle.dump(categorical_transformer, f)
+
+            # Save the final feature names after transformation
+            # This requires transforming the training data to get the final column names
+            X_train_transformed = self.preprocessing_pipeline.transform(self.X_train)
+            final_feature_names = X_train_transformed.columns.tolist()
+            with open(os.path.join(self.artifacts_dir, 'feature_names.pkl'), 'wb') as f:
+                pickle.dump(final_feature_names, f)
+
+            # Create and save transformation metadata
+            numeric_cols = self.X_train.select_dtypes(include=np.number).columns.tolist()
+            categorical_cols = self.X_train.select_dtypes(include=['object', 'category']).columns.tolist()
+            
+            transformation_metadata = {
+                'numeric_columns': numeric_cols,
+                'categorical_columns': categorical_cols
+            }
+            with open(os.path.join(self.artifacts_dir, 'transformation_metadata.json'), 'w') as f:
+                import json
+                json.dump(transformation_metadata, f, indent=4)
+
+            self.logger.info("Successfully saved all transformation artifacts.")
+
+        except Exception as e:
+            self.logger.error(f"Error saving transformation artifacts: {str(e)}")
+            raise
+
     def save_processed_data(self, X_train_processed, X_test_processed):
         """
         Save the processed datasets and pipeline to pickle files.
@@ -369,6 +417,9 @@ class FeaturePipeline:
             
             # Save processed data
             self.save_processed_data(X_train_processed, X_test_processed)
+
+            # Save transformation artifacts for inference
+            self.save_transformation_artifacts()
             
             # Generate summary report
             summary = self.generate_summary_report(X_train_processed, X_test_processed)
