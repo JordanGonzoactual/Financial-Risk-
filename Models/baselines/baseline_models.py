@@ -6,8 +6,7 @@ import numpy as np
 from sklearn.model_selection import cross_val_score
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score, mean_absolute_percentage_error
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import Lasso
-from sklearn.neighbors import KNeighborsRegressor
+from sklearn.linear_model import Lasso, Ridge, ElasticNet
 import xgboost as xgb
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -79,7 +78,8 @@ def train_and_evaluate():
         'XGBoost': xgb.XGBRegressor(random_state=RANDOM_STATE, enable_categorical=True),
         'RandomForest': RandomForestRegressor(random_state=RANDOM_STATE),
         'Lasso': Lasso(random_state=RANDOM_STATE),
-        'KNN': KNeighborsRegressor()
+        'Ridge': Ridge(random_state=RANDOM_STATE),
+        'ElasticNet': ElasticNet(random_state=RANDOM_STATE)
     }
 
     all_results = {}
