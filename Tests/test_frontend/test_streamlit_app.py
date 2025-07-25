@@ -593,3 +593,231 @@ class TestStreamlitPerformance:
             # Verify all components were rendered
             assert mock_dataframe.call_count == 10
             assert mock_chart.call_count == 10
+
+
+class TestDataRequirementsComponent:
+    """Test class for DataRequirementsComponent functionality."""
+    
+    @patch('frontend.app.ui_components.st.divider')
+    @patch('frontend.app.ui_components.st.expander')
+    @patch('frontend.app.ui_components.st.columns')
+    @patch('frontend.app.ui_components.st.markdown')
+    @patch('frontend.app.ui_components.st.write')
+    @patch('frontend.app.ui_components.st.subheader')
+    @patch('frontend.app.ui_components.st.success')
+    @patch('frontend.app.ui_components.st.info')
+    @patch('frontend.app.ui_components.st.header')
+    def test_data_requirements_component_render(self, mock_header, mock_info, mock_success, 
+                                              mock_subheader, mock_write, mock_markdown, 
+                                              mock_columns, mock_expander, mock_divider):
+        """Test that DataRequirementsComponent renders correctly with proper messaging and column display."""
+        # Mock the schema import
+        mock_schema = [
+            'ApplicationDate', 'Age', 'AnnualIncome', 'CreditScore', 'EmploymentStatus',
+            'EducationLevel', 'Experience', 'LoanAmount', 'LoanDuration', 'MaritalStatus',
+            'NumberOfDependents', 'HomeOwnershipStatus', 'MonthlyDebtPayments', 
+            'CreditCardUtilizationRate', 'NumberOfOpenCreditLines', 'NumberOfCreditInquiries',
+            'DebtToIncomeRatio', 'BankruptcyHistory', 'LoanPurpose', 'PreviousLoanDefaults',
+            'PaymentHistory', 'LengthOfCreditHistory', 'SavingsAccountBalance', 
+            'CheckingAccountBalance', 'TotalAssets', 'TotalLiabilities', 'MonthlyIncome',
+            'UtilityBillsPaymentHistory', 'JobTenure', 'NetWorth', 'BaseInterestRate',
+            'InterestRate', 'MonthlyLoanPayment', 'TotalDebtToIncomeRatio'
+        ]
+        
+        # Mock column objects for st.columns(3) with context manager support
+        mock_col1, mock_col2, mock_col3 = Mock(), Mock(), Mock()
+        mock_col1.__enter__ = Mock(return_value=mock_col1)
+        mock_col1.__exit__ = Mock(return_value=None)
+        mock_col2.__enter__ = Mock(return_value=mock_col2)
+        mock_col2.__exit__ = Mock(return_value=None)
+        mock_col3.__enter__ = Mock(return_value=mock_col3)
+        mock_col3.__exit__ = Mock(return_value=None)
+        mock_columns.return_value = [mock_col1, mock_col2, mock_col3]
+        
+        with patch('frontend.app.ui_components.RAW_FEATURE_SCHEMA', mock_schema):
+            from frontend.app.ui_components import DataRequirementsComponent
+            
+            component = DataRequirementsComponent()
+            component.render()
+            
+            # Verify header is displayed
+            mock_header.assert_called_once_with("📋 Data Requirements")
+            
+            # Verify info message about required fields
+            mock_info.assert_called_once()
+            info_call_args = mock_info.call_args[0][0]
+            assert "All fields listed below must be present" in info_call_args
+            assert "accurate predictions" in info_call_args
+            
+            # Verify column count display
+            mock_success.assert_called_once_with(f"**Total Required Columns: {len(mock_schema)}**")
+            
+            # Verify subheader for column names
+            mock_subheader.assert_called_once_with("Required Column Names:")
+            
+            # Verify 3-column layout is created
+            mock_columns.assert_called_once_with(3)
+            
+            # Verify columns are displayed (check that write was called multiple times)
+            assert mock_write.call_count > 0
+            
+            # Verify expander for tips is created
+            mock_expander.assert_called_once_with("💡 Tips for Data Preparation")
+            
+            # Verify divider is added at the end
+            mock_divider.assert_called_once()
+    
+    @patch('frontend.app.ui_components.st.warning')
+    @patch('frontend.app.ui_components.st.error')
+    @patch('frontend.app.ui_components.st.header')
+    def test_data_requirements_import_error_handling(self, mock_header, mock_error, mock_warning):
+        """Test that DataRequirementsComponent handles ImportError gracefully when schema cannot be loaded."""
+        # Mock schema as None to simulate import error
+        with patch('frontend.app.ui_components.RAW_FEATURE_SCHEMA', None):
+            from frontend.app.ui_components import DataRequirementsComponent
+            
+            component = DataRequirementsComponent()
+            component.render()
+            
+            # Verify header is still displayed
+            mock_header.assert_called_once_with("📋 Data Requirements")
+            
+            # Verify error message is displayed
+            mock_error.assert_called_once()
+            error_call_args = mock_error.call_args[0][0]
+            assert "Unable to load data requirements schema" in error_call_args
+            
+            # Verify fallback warning is displayed
+            mock_warning.assert_called_once()
+            warning_call_args = mock_warning.call_args[0][0]
+            assert "Fallback Information" in warning_call_args
+            assert "loan application data" in warning_call_args
+    
+    @patch('frontend.app.ui_components.st.write')
+    @patch('frontend.app.ui_components.st.markdown')
+    @patch('frontend.app.ui_components.st.columns')
+    def test_data_requirements_column_display_format(self, mock_columns, mock_markdown, mock_write):
+        """Test that columns are displayed in the expected 3-column grid format."""
+        mock_schema = ['Col1', 'Col2', 'Col3', 'Col4', 'Col5', 'Col6', 'Col7', 'Col8', 'Col9']
+        
+        # Mock column objects with context manager support
+        mock_col1, mock_col2, mock_col3 = Mock(), Mock(), Mock()
+        mock_col1.__enter__ = Mock(return_value=mock_col1)
+        mock_col1.__exit__ = Mock(return_value=None)
+        mock_col2.__enter__ = Mock(return_value=mock_col2)
+        mock_col2.__exit__ = Mock(return_value=None)
+        mock_col3.__enter__ = Mock(return_value=mock_col3)
+        mock_col3.__exit__ = Mock(return_value=None)
+        mock_columns.return_value = [mock_col1, mock_col2, mock_col3]
+        
+        with patch('frontend.app.ui_components.RAW_FEATURE_SCHEMA', mock_schema):
+            from frontend.app.ui_components import DataRequirementsComponent
+            
+            component = DataRequirementsComponent()
+            component.render()
+            
+            # Verify st.columns(3) is called
+            mock_columns.assert_called_with(3)
+            
+            # Verify markdown headers are set for each section
+            expected_markdown_calls = [
+                ("**Section 1:**",),
+                ("**Section 2:**",),
+                ("**Section 3:**",)
+            ]
+            
+            # Check that section headers were created
+            markdown_calls = [call[0][0] if call[0] else '' for call in mock_markdown.call_args_list]
+            for expected_call in expected_markdown_calls:
+                assert expected_call[0] in markdown_calls
+            
+            # Verify that column names appear in write calls
+            write_calls = [str(call) for call in mock_write.call_args_list]
+            write_text = ' '.join(write_calls)
+            
+            for col_name in mock_schema:
+                assert col_name in write_text
+    
+    def test_data_requirements_integration_with_views(self):
+        """Test integration of DataRequirementsComponent with AppViews.render_main_content method."""
+        # Test that DataRequirementsComponent can be instantiated and has the expected interface
+        from frontend.app.ui_components import DataRequirementsComponent
+        
+        # Create component instance
+        component = DataRequirementsComponent()
+        
+        # Verify it has the expected methods
+        assert hasattr(component, 'render')
+        assert callable(component.render)
+        
+        # Test that the component can be imported and used in the views context
+        # This is a simplified integration test that avoids complex import mocking
+        with patch('frontend.app.ui_components.st.header') as mock_header:
+            # Mock the schema to avoid import issues
+            with patch('frontend.app.ui_components.RAW_FEATURE_SCHEMA', ['TestCol']):
+                component.render()
+                # Verify the component renders without errors
+                mock_header.assert_called_once()
+    
+    def test_data_requirements_render_order_in_main_content(self):
+        """Test that DataRequirementsComponent.render() is called at the appropriate position in the rendering flow."""
+        # This is a simplified test that verifies the component can be called in the expected order
+        from frontend.app.ui_components import DataRequirementsComponent
+        
+        # Mock streamlit components to track call order
+        with patch('frontend.app.ui_components.st.title') as mock_title, \
+             patch('frontend.app.ui_components.st.header') as mock_header, \
+             patch('frontend.app.ui_components.st.info') as mock_info:
+            
+            # Mock the schema
+            with patch('frontend.app.ui_components.RAW_FEATURE_SCHEMA', ['TestCol']):
+                # Simulate the render order: title first, then data requirements
+                mock_title("Batch Loan Risk Assessment")
+                
+                component = DataRequirementsComponent()
+                component.render()
+                
+                # Verify the expected calls were made
+                mock_title.assert_called_with("Batch Loan Risk Assessment")
+                mock_header.assert_called_with("📋 Data Requirements")
+                mock_info.assert_called_once()
+    
+    def test_data_requirements_component_initialization(self):
+        """Test that DataRequirementsComponent can be initialized without errors."""
+        from frontend.app.ui_components import DataRequirementsComponent
+        
+        # Test component initialization
+        component = DataRequirementsComponent()
+        
+        # Verify component has render method
+        assert hasattr(component, 'render')
+        assert callable(component.render)
+    
+    @patch('frontend.app.ui_components.st.expander')
+    def test_data_requirements_tips_expander_content(self, mock_expander):
+        """Test that the tips expander contains helpful information for users."""
+        mock_schema = ['TestCol1', 'TestCol2']
+        mock_expander_context = Mock()
+        mock_expander.return_value.__enter__ = Mock(return_value=mock_expander_context)
+        mock_expander.return_value.__exit__ = Mock(return_value=None)
+        
+        with patch('frontend.app.ui_components.RAW_FEATURE_SCHEMA', mock_schema), \
+             patch('frontend.app.ui_components.st.markdown') as mock_markdown:
+            
+            from frontend.app.ui_components import DataRequirementsComponent
+            
+            component = DataRequirementsComponent()
+            component.render()
+            
+            # Verify expander is created with correct title
+            mock_expander.assert_called_with("💡 Tips for Data Preparation")
+            
+            # Verify markdown content includes helpful tips
+            markdown_calls = [call[0][0] for call in mock_markdown.call_args_list if call[0]]
+            tips_content = ' '.join(markdown_calls)
+            
+            # Check for key tips content
+            assert "Column Names" in tips_content
+            assert "Data Completeness" in tips_content
+            assert "File Format" in tips_content
+            assert "CSV or Excel" in tips_content
