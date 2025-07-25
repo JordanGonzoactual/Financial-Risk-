@@ -3,6 +3,87 @@ import pandas as pd
 import plotly.express as px
 from .state import AppState
 
+# Import schema for data requirements display
+try:
+    import sys
+    import os
+    # Add the project root to the path to import from FeatureEngineering
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    sys.path.append(project_root)
+    from FeatureEngineering.schema_validator import RAW_FEATURE_SCHEMA
+except ImportError as e:
+    RAW_FEATURE_SCHEMA = None
+    print(f"Warning: Could not import RAW_FEATURE_SCHEMA: {e}")
+
+class DataRequirementsComponent:
+    """Displays the required data format information for CSV uploads."""
+    
+    def render(self):
+        """Renders the data requirements section at the top of the application."""
+        st.header("📋 Data Requirements")
+        
+        # Main explanation
+        st.info(
+            "**Important:** All fields listed below must be present in your CSV file for accurate predictions. "
+            "Please ensure your data includes all required columns with complete information."
+        )
+        
+        # Handle schema loading gracefully
+        if RAW_FEATURE_SCHEMA is None:
+            st.error(
+                "⚠️ Unable to load data requirements schema. Please contact support if this issue persists."
+            )
+            st.warning(
+                "**Fallback Information:** Your CSV file should contain loan application data with "
+                "borrower demographics, financial information, credit history, and loan details."
+            )
+            return
+        
+        # Display column count
+        total_columns = len(RAW_FEATURE_SCHEMA)
+        st.success(f"**Total Required Columns: {total_columns}**")
+        
+        # Display columns in a 3-column grid for better readability
+        st.subheader("Required Column Names:")
+        
+        # Calculate columns per grid column (roughly equal distribution)
+        cols_per_section = (total_columns + 2) // 3  # Round up division
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown("**Section 1:**")
+            for i, column in enumerate(RAW_FEATURE_SCHEMA[:cols_per_section]):
+                st.write(f"• {column}")
+        
+        with col2:
+            st.markdown("**Section 2:**")
+            start_idx = cols_per_section
+            end_idx = min(cols_per_section * 2, total_columns)
+            for column in RAW_FEATURE_SCHEMA[start_idx:end_idx]:
+                st.write(f"• {column}")
+        
+        with col3:
+            st.markdown("**Section 3:**")
+            start_idx = cols_per_section * 2
+            for column in RAW_FEATURE_SCHEMA[start_idx:]:
+                st.write(f"• {column}")
+        
+        # Additional helpful information
+        with st.expander("💡 Tips for Data Preparation"):
+            st.markdown(
+                """
+                - **Column Names:** Must match exactly as listed above (case-sensitive)
+                - **Data Completeness:** All rows should have values for all columns
+                - **File Format:** Upload as CSV or Excel (.xlsx) file
+                - **Data Types:** The application will handle type conversion automatically
+                - **Missing Values:** Avoid empty cells where possible for best results
+                """
+            )
+        
+        # Visual separator
+        st.divider()
+
 class FileUploadComponent:
     """Handles the file upload and initial preview."""
     def __init__(self, controller):
