@@ -1,0 +1,53 @@
+# Test Dependencies for Financial Risk Project
+# Install with: pip install -r requirements-test.txt
+
+# Core testing framework
+pytest>=6.0.0
+pytest-cov>=2.0.0
+pytest-html>=3.0.0
+pytest-xdist>=2.0.0
+pytest-mock>=3.0.0
+pytest-asyncio>=0.18.0
+
+# Coverage reporting
+coverage>=5.0.0
+
+# Mocking and testing utilities
+mock>=4.0.0
+responses>=0.18.0
+freezegun>=1.2.0
+
+# Performance testing
+pytest-benchmark>=3.4.0
+memory-profiler>=0.60.0
+psutil>=5.8.0
+
+# Data testing
+pandas>=1.3.0
+numpy>=1.21.0
+
+# API testing
+requests>=2.25.0
+requests-mock>=1.9.0
+
+# Optional ML testing dependencies (install if available)
+# scikit-learn>=1.0.0
+# xgboost>=1.5.0
+# optuna>=2.10.0
+# mlflow>=1.20.0
+
+# Streamlit testing (if available)
+# streamlit>=1.0.0
+
+# Development utilities
+black>=21.0.0
+flake8>=4.0.0
+isort>=5.9.0
+mypy>=0.910
+
+# Documentation testing
+doctest>=1.0.0
+
+# Jupyter notebook testing (if needed)
+# nbval>=0.9.0
+# jupyter>=1.0.0
