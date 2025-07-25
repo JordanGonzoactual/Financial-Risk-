@@ -82,9 +82,28 @@ class ModelService:
 
     def health_check(self) -> dict:
         """Performs a health check on the service's components."""
+        model_loaded = self.model is not None
+        pipeline_loaded = self.pipeline is not None and self.pipeline.pipeline is not None
+        
         return {
-            'model_loaded': self.model is not None,
-            'pipeline_loaded': self.pipeline is not None and self.pipeline.pipeline is not None
+            'model_loaded': model_loaded,
+            'pipeline_loaded': pipeline_loaded,
+            'status': 'healthy' if model_loaded and pipeline_loaded else 'unhealthy'
+        }
+    
+    def get_model_info(self) -> dict:
+        """Returns information about the loaded model."""
+        if self.model is None:
+            return {
+                'model_loaded': False,
+                'model_type': None,
+                'model_version': None
+            }
+        
+        return {
+            'model_loaded': True,
+            'model_type': type(self.model).__name__,
+            'model_version': getattr(self.model, 'version', 'unknown')
         }
 
 
