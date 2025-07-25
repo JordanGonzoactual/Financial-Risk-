@@ -42,19 +42,19 @@ def load_processed_data(processed_data_path: str) -> tuple:
         raise ValueError(f"Shape mismatch: X_test has {X_test.shape[0]} samples, but y_test has {y_test.shape[0]}.")
     logging.info("Shape consistency check passed.")
 
-    # 2. Missing Values Check
-    if X_train.isnull().sum().sum() > 0:
-        logging.warning("Missing values detected in X_train.")
-    if X_test.isnull().sum().sum() > 0:
-        logging.warning("Missing values detected in X_test.")
-    logging.info("Missing values check completed.")
-
-    # 3. Data Type Verification
+    # 2. Data Type Verification (check this first)
     if not isinstance(X_train, pd.DataFrame) or not isinstance(X_test, pd.DataFrame):
         raise TypeError("X_train and X_test should be pandas DataFrames.")
     if not isinstance(y_train, pd.Series) or not isinstance(y_test, pd.Series):
         raise TypeError("y_train and y_test should be pandas Series.")
     logging.info("Data type verification passed.")
+
+    # 3. Missing Values Check (only after confirming they are DataFrames)
+    if X_train.isnull().sum().sum() > 0:
+        logging.warning("Missing values detected in X_train.")
+    if X_test.isnull().sum().sum() > 0:
+        logging.warning("Missing values detected in X_test.")
+    logging.info("Missing values check completed.")
 
     logging.info("Data loading and validation complete.")
     
