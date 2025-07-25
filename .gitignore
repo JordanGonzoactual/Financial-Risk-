@@ -32,4 +32,12 @@ debug_data.py
 # HTML reports
 *.html
 .env
-.env
+
+# Database files
+*.db
+
+# Generated files
+*.json
+
+# Reports
+/Analysis/reports/
