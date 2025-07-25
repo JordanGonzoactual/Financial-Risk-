@@ -2,6 +2,7 @@ import streamlit as st
 from .state import AppState
 from .controller import AppController
 from .ui_components import (
+    DataRequirementsComponent,
     FileUploadComponent,
     DataPreviewComponent,
     ResultsDashboardComponent,
@@ -12,6 +13,7 @@ class AppViews:
     def __init__(self):
         self.controller = AppController()
         # Instantiate components
+        self.data_requirements = DataRequirementsComponent()
         self.file_uploader = FileUploadComponent(self.controller)
         self.data_preview = DataPreviewComponent(self.controller) # Pass controller for validation button
         self.results_dashboard = ResultsDashboardComponent()
@@ -25,6 +27,9 @@ class AppViews:
     def render_main_content(self):
         st.title("Batch Loan Risk Assessment")
 
+        # Display data requirements first
+        self.data_requirements.render()
+        
         # Render components in order
         self.file_uploader.render()
         self.data_preview.render()
