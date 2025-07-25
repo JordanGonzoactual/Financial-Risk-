@@ -1,15 +1,22 @@
 import os
+import sys
 import json
 import logging
 import time
 import pandas as pd
 
-from feature_pipeline import FeaturePipeline
-from pipeline_builder import build_pipeline_from_dataframe
+# Add project root to the Python path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from FeatureEngineering.feature_pipeline import FeaturePipeline
+from FeatureEngineering.pipeline_builder import build_pipeline_from_dataframe
 
 # --- Configuration ---
 INPUT_FILE = 'Data/raw/Loan.csv'
 OUTPUT_DIR = 'Data/processed'
+ARTIFACTS_DIR = 'FeatureEngineering/artifacts'
 TARGET_COLUMN = 'RiskScore'
 COLUMNS_TO_REMOVE = ['LoanApproved']
 LOG_FILE = 'Logs/data_processor.log'
@@ -84,6 +91,7 @@ def main():
         feature_pipeline = FeaturePipeline(
             input_filepath=INPUT_FILE,
             output_dir=OUTPUT_DIR,
+            artifacts_dir=ARTIFACTS_DIR,
             target_column=TARGET_COLUMN
         )
 
