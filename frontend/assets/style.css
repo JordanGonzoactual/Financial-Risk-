@@ -1,0 +1,64 @@
+/* General App Styling */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #333;
+}
+
+/* Main container */
+.main .block-container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+}
+
+/* Sidebar Styling */
+.css-1d391kg {
+    background-color: #f8f9fa; /* Light grey sidebar */
+}
+
+/* Headers and Titles */
+h1, h2, h3 {
+    color: #004466; /* Dark blue for headers */
+}
+
+/* Button Styling */
+.stButton>button {
+    border-radius: 20px;
+    border: 1px solid #007bff;
+    background-color: #007bff;
+    color: white;
+    padding: 10px 24px;
+    transition: background-color 0.3s, border-color 0.3s;
+}
+
+.stButton>button:hover {
+    background-color: #0056b3;
+    border-color: #0056b3;
+}
+
+/* Expander Styling */
+.st-expander {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+
+.st-expander header {
+    font-weight: bold;
+    color: #004466;
+}
+
+/* Tab Styling */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 24px;
+}
+
+.stTabs [data-baseweb="tab"] {
+    height: 48px;
+    white-space: pre-wrap;
+    background-color: #f0f2f6;
+    border-radius: 8px;
+}
+
+.stTabs [aria-selected="true"] {
+    background-color: #007bff;
+    color: white;
+}

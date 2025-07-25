@@ -1,0 +1,6 @@
+streamlit
+pandas
+numpy
+openpyxl # Required for reading .xlsx files
+requests # For making API calls
+plotly # For interactive charts
