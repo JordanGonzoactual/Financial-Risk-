@@ -263,16 +263,27 @@ def mock_processed_data_files(temp_data_directory, processed_features):
     return temp_data_directory
 
 
-@pytest.fixture
-def flask_test_client():
+@pytest.fixture(scope='module')
+def app():
+    """Fixture providing a Flask application instance for testing."""
+    flask_app = create_app()
+    flask_app.config.update({
+        "TESTING": True,
+    })
+    yield flask_app
+
+
+@pytest.fixture(scope='module')
+def flask_test_client(app):
     """
     Fixture providing a Flask test client for API testing.
-    
+
+    Args:
+        app: The Flask application instance.
+
     Returns:
         Flask test client
     """
-    app = create_app()
-    app.config['TESTING'] = True
     with app.test_client() as client:
         yield client
 
