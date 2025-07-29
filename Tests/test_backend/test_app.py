@@ -263,26 +263,27 @@ class TestIntegrationScenarios:
             assert 'predictions' in data
             assert isinstance(data['predictions'], list)
     
-    def test_concurrent_requests(self, flask_test_client, csv_loan_data, mock_model_service):
+    def test_concurrent_requests(self, app, flask_test_client, csv_loan_data, mock_model_service):
         """Test handling of concurrent requests."""
         import threading
         import time
         
         results = []
         
-        def make_request():
-            with patch('backend.app.model_service', mock_model_service):
-                response = flask_test_client.post(
-                    '/predict',
-                    data=csv_loan_data,
-                    content_type='text/csv'
-                )
-                results.append(response.status_code)
+        def make_request(app):
+            with app.app_context():
+                with patch('backend.app.model_service', mock_model_service):
+                    response = flask_test_client.post(
+                        '/predict',
+                        data=csv_loan_data,
+                        content_type='text/csv'
+                    )
+                    results.append(response.status_code)
         
         # Create multiple threads to simulate concurrent requests
         threads = []
         for _ in range(5):
-            thread = threading.Thread(target=make_request)
+            thread = threading.Thread(target=make_request, args=(app,))
             threads.append(thread)
             thread.start()
         
