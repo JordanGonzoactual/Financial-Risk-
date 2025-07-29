@@ -41,3 +41,16 @@ debug_data.py
 
 # Reports
 /Analysis/reports/
+
+# Test reports
+.coverage
+
+# Data files
+focused_synthetic_loan_data.csv
+
+# Streamlit cache
+frontend/.streamlit/
+
+# Local config
+pytest.ini
+
