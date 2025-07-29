@@ -114,15 +114,27 @@ class DataPreviewComponent:
                 st.write("**Basic Statistics:**")
                 st.dataframe(AppState.get_state('raw_data').describe())
             
-            if st.button("Confirm and Validate Data"):
-                self.controller.handle_data_validation()
+            # --- Validation Step ---
+            if st.button("Validate Data"):
+                with st.spinner('Validating...'):
+                    self.controller.handle_data_validation()
+                # st.rerun() # Temporarily disabled for debugging
 
             report = AppState.get_state('validation_report')
             if report:
                 self._render_validation_report(report)
+                
+                # --- Confirmation Step ---
+                # Show confirmation button only if data is valid and not yet confirmed
+                if report['is_valid'] and not AppState.get_state('data_confirmed'):
+                    if st.button("Confirm Validated Data"):
+                        AppState.set_state('data_confirmed', True)
+                        st.rerun()
 
-            # Show processing button only if data is validated
-            if AppState.get_state('validated_data') is not None:
+            # --- Processing Step ---
+            # Show processing controls only after data has been confirmed
+            if AppState.get_state('data_confirmed'):
+                st.success("Data confirmed and ready for processing.")
                 ProcessingControlsComponent(self.controller).render()
 
     def _render_validation_report(self, report):
