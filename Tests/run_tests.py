@@ -21,13 +21,15 @@ def get_project_root():
 def run_command(command, cwd=None):
     """Run a command and return the result."""
     try:
+        # Using subprocess.run and letting it inherit stdout/stderr
+        # is simpler and more reliable for streaming output.
         result = subprocess.run(
-            command,
-            shell=True,
+            command,  # command should be a list
+            shell=False,
             cwd=cwd,
-            capture_output=True,
             text=True,
-            timeout=300  # 5 minute timeout
+            timeout=300,  # 5 minute timeout
+            check=False # Do not raise exception on non-zero exit codes
         )
         return result
     except subprocess.TimeoutExpired:
@@ -65,7 +67,7 @@ def run_unit_tests(verbose=False, coverage=False):
     """Run unit tests."""
     print("🧪 Running unit tests...")
     
-    cmd = ["python", "-m", "pytest", "Tests/", "-m", "unit"]
+    cmd = [sys.executable, "-m", "pytest", "Tests/", "-m", "unit"]
     
     if verbose:
         cmd.append("-v")
@@ -75,16 +77,14 @@ def run_unit_tests(verbose=False, coverage=False):
     
     cmd.extend(["--tb=short", "--durations=10"])
     
-    result = run_command(" ".join(cmd), cwd=get_project_root())
+    result = run_command(cmd, cwd=get_project_root())
     
     if result:
-        print(f"Unit tests completed with return code: {result.returncode}")
+        print(f"\nUnit tests completed with return code: {result.returncode}")
         if result.returncode == 0:
             print("✅ All unit tests passed!")
         else:
             print("❌ Some unit tests failed")
-            print("STDOUT:", result.stdout)
-            print("STDERR:", result.stderr)
     
     return result
 
@@ -93,17 +93,17 @@ def run_integration_tests(verbose=False):
     """Run integration tests."""
     print("🔗 Running integration tests...")
     
-    cmd = ["python", "-m", "pytest", "Tests/", "-m", "integration"]
+    cmd = [sys.executable, "-m", "pytest", "Tests/", "-m", "integration"]
     
     if verbose:
         cmd.append("-v")
     
     cmd.extend(["--tb=short", "--durations=10"])
     
-    result = run_command(" ".join(cmd), cwd=get_project_root())
+    result = run_command(cmd, cwd=get_project_root())
     
     if result:
-        print(f"Integration tests completed with return code: {result.returncode}")
+        print(f"\nIntegration tests completed with return code: {result.returncode}")
         if result.returncode == 0:
             print("✅ All integration tests passed!")
         else:
@@ -116,21 +116,51 @@ def run_performance_tests(verbose=False):
     """Run performance tests."""
     print("⚡ Running performance tests...")
     
-    cmd = ["python", "-m", "pytest", "Tests/", "-m", "performance"]
+    cmd = [sys.executable, "-m", "pytest", "Tests/", "-m", "performance"]
     
     if verbose:
         cmd.append("-v")
     
     cmd.extend(["--tb=short", "--durations=10"])
     
-    result = run_command(" ".join(cmd), cwd=get_project_root())
+    result = run_command(cmd, cwd=get_project_root())
     
     if result:
-        print(f"Performance tests completed with return code: {result.returncode}")
+        print(f"\nPerformance tests completed with return code: {result.returncode}")
         if result.returncode == 0:
             print("✅ All performance tests passed!")
         else:
             print("❌ Some performance tests failed")
+    
+    return result
+
+
+def run_desktop_tests(verbose=False, coverage=False):
+    """Run desktop application tests."""
+    print("🖥️  Running desktop application tests...")
+    
+    cmd = [sys.executable, "-m", "pytest", "Tests/test_frontend/test_desktop_app.py", "-m", "desktop"]
+    
+    if verbose:
+        cmd.append("-v")
+    
+    if coverage:
+        cmd.extend([
+            "--cov=frontend.desktop_app",
+            "--cov-report=html:Tests/coverage_desktop",
+            "--cov-report=term-missing"
+        ])
+    
+    cmd.extend(["--tb=short", "--durations=10"])
+    
+    result = run_command(cmd, cwd=get_project_root())
+    
+    if result:
+        print(f"\nDesktop tests completed with return code: {result.returncode}")
+        if result.returncode == 0:
+            print("✅ All desktop tests passed!")
+        else:
+            print("❌ Some desktop tests failed")
     
     return result
 
@@ -143,7 +173,8 @@ def run_specific_component_tests(component, verbose=False):
         'backend': 'Tests/test_backend/',
         'frontend': 'Tests/test_frontend/',
         'models': 'Tests/test_models/',
-        'feature_engineering': 'Tests/test_feature_engineering/'
+        'feature_engineering': 'Tests/test_feature_engineering/',
+        'desktop': 'Tests/test_frontend/test_desktop_app.py'
     }
     
     if component not in component_map:
@@ -152,21 +183,21 @@ def run_specific_component_tests(component, verbose=False):
         return None
     
     test_path = component_map[component]
-    cmd = ["python", "-m", "pytest", test_path]
+    cmd = [sys.executable, "-m", "pytest", test_path]
     
     if verbose:
         cmd.append("-v")
     
     cmd.extend(["--tb=short", "--durations=10"])
     
-    result = run_command(" ".join(cmd), cwd=get_project_root())
+    result = run_command(cmd, cwd=get_project_root())
     
     if result:
-        print(f"{component} tests completed with return code: {result.returncode}")
+        print(f"\nComponent tests for '{component}' completed with return code: {result.returncode}")
         if result.returncode == 0:
-            print(f"✅ All {component} tests passed!")
+            print(f"✅ All tests for component '{component}' passed!")
         else:
-            print(f"❌ Some {component} tests failed")
+            print(f"❌ Some tests for component '{component}' failed")
     
     return result
 
@@ -175,7 +206,7 @@ def run_all_tests(verbose=False, coverage=False, parallel=False):
     """Run all tests."""
     print("🚀 Running all tests...")
     
-    cmd = ["python", "-m", "pytest", "Tests/"]
+    cmd = [sys.executable, "-m", "pytest", "Tests/"]
     
     if verbose:
         cmd.append("-v")
@@ -198,7 +229,7 @@ def run_all_tests(verbose=False, coverage=False, parallel=False):
     ])
     
     start_time = time.time()
-    result = run_command(" ".join(cmd), cwd=get_project_root())
+    result = run_command(cmd, cwd=get_project_root())
     end_time = time.time()
     
     if result:
@@ -232,7 +263,7 @@ def generate_test_report():
         "-v"
     ]
     
-    result = run_command(" ".join(cmd), cwd=get_project_root())
+    result = run_command(cmd, cwd=get_project_root())
     
     if result:
         print("📋 Test report generated:")
@@ -336,14 +367,14 @@ def main():
         "command",
         choices=[
             "unit", "integration", "performance", "all", "component",
-            "report", "check", "clean", "install-deps"
+            "desktop", "report", "check", "clean", "install-deps"
         ],
         help="Test command to run"
     )
     
     parser.add_argument(
         "--component",
-        choices=["backend", "frontend", "models", "feature_engineering"],
+        choices=["backend", "frontend", "models", "feature_engineering", "desktop"],
         help="Specific component to test (use with 'component' command)"
     )
     
@@ -388,6 +419,9 @@ def main():
     
     elif args.command == "performance":
         run_performance_tests(verbose=args.verbose)
+    
+    elif args.command == "desktop":
+        run_desktop_tests(verbose=args.verbose, coverage=args.coverage)
     
     elif args.command == "component":
         if not args.component:
