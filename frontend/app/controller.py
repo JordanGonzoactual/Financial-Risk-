@@ -40,25 +40,30 @@ class AppController:
             st.error(f"Failed to read file: {e}")
 
     def handle_data_validation(self):
+        print("--- DEBUG: handle_data_validation called ---")
         df = AppState.get_state('raw_data')
         if df is None:
             st.warning("Please upload a file first.")
+            print("--- DEBUG: No data found, returning ---")
             return
 
+        print("--- DEBUG: Starting validation... ---")
         validator = CSVValidator(df)
         report = validator.validate()
+        print(f"--- DEBUG: Validation result: {report} ---")
+
         AppState.set_state('validation_report', report)
+        print(f"--- DEBUG: State after validation: {AppState.get_state('validation_report')} ---")
 
         if report['is_valid']:
             clean_df = validator.get_clean_data()
             AppState.set_state('validated_data', clean_df)
             logger.info("Data validation successful.")
-            st.success("Data is valid and has been cleaned!")
+            print("--- DEBUG: Data is valid, 'validated_data' set in state ---")
         else:
             AppState.set_state('validated_data', None) # Ensure no stale data
             logger.warning("Data validation failed.")
-            error_messages = "\n".join(report['errors'])
-            st.error(f"Data validation failed with the following errors:\n{error_messages}")
+            print("--- DEBUG: Data is invalid, 'validated_data' cleared from state ---")
 
     def handle_assessment_processing(self):
         # We use 'validated_data' to confirm validation passed, but send 'csv_content'
