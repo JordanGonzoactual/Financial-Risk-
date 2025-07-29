@@ -1,17 +1,15 @@
 import pandas as pd
+import sys
+import os
+
+# Add project root to the Python path to enable module imports
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, PROJECT_ROOT)
+
+from FeatureEngineering.schema_validator import RAW_FEATURE_SCHEMA
 
 class CSVValidator:
-    REQUIRED_COLUMNS = [
-        'ApplicationDate', 'Age', 'AnnualIncome', 'CreditScore', 'EmploymentStatus',
-        'EducationLevel', 'Experience', 'LoanAmount', 'LoanDuration', 'MaritalStatus',
-        'NumberOfDependents', 'HomeOwnershipStatus', 'MonthlyDebtPayments',
-        'CreditCardUtilizationRate', 'NumberOfOpenCreditLines', 'NumberOfCreditInquiries',
-        'DebtToIncomeRatio', 'BankruptcyHistory', 'LoanPurpose', 'PreviousLoanDefaults',
-        'PaymentHistory', 'LengthOfCreditHistory', 'SavingsAccountBalance',
-        'CheckingAccountBalance', 'TotalAssets', 'TotalLiabilities', 'MonthlyIncome',
-        'UtilityBillsPaymentHistory', 'JobTenure', 'NetWorth', 'BaseInterestRate',
-        'InterestRate', 'MonthlyLoanPayment', 'TotalDebtToIncomeRatio'
-    ]
+    REQUIRED_COLUMNS = RAW_FEATURE_SCHEMA
 
     def __init__(self, df):
         self.df = df.copy()
