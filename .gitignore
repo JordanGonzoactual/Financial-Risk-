@@ -38,6 +38,7 @@ debug_data.py
 
 # Generated files
 *.json
+!Models/trained_models/model_metadata.json
 
 # Reports
 /Analysis/reports/
