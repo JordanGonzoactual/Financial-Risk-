@@ -121,7 +121,8 @@ Our optimization strategy employs a systematic 5-stage approach using Optuna:
 - **TPE Sampling**: Tree-structured Parzen Estimator for efficient search
 - **Reproducible Results**: Fixed random seeds across all stages
 
-![Final Model Performance](EDA/final_model_performance.png)
+<img width="3000" height="1800" alt="image" src="https://github.com/user-attachments/assets/c7defdc6-c376-4c6a-b1d9-82973bde297b" />
+
 
 ## 📈 Experiment Tracking & Reproducibility
 
@@ -291,9 +292,9 @@ pytest Tests/ --cov=. --cov-report=html
 ## 📊 Performance Metrics
 
 ### Model Performance
-- **RMSE**: < 0.15 (optimized through hyperparameter tuning)
-- **MAE**: < 0.12 
-- **R² Score**: > 0.85
+- **RMSE**: = 2.4 (optimized through hyperparameter tuning)
+- **MAE**: = 1.43
+- **R² Score**: > 0.90
 - **Prediction Time**: < 100ms per batch (1000 records)
 
 ### System Performance
