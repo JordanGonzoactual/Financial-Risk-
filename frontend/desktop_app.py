@@ -119,8 +119,13 @@ class DesktopRiskApp:
             logger.warning(f"Python check failed for {python_exe}: {e}")
         return False
 
-    def _get_python_executable(self):
+    def _get_python_executable(self) -> str:
         """Detect the correct Python executable to use for Streamlit."""
+        # Check for container environment override
+        if os.environ.get('CONTAINER_ENV'):
+            logger.info("Container environment detected. Using base Conda Python.")
+            return '/opt/conda/bin/python'
+
         # First, try to use the same Python that's running this script
         current_python = sys.executable
         if self._check_python_exe(current_python):
@@ -321,20 +326,30 @@ class DesktopRiskApp:
     def run(self) -> None:
         """
         Run the desktop application.
-        
-        This method starts the Streamlit server and creates the desktop window.
+
+        This method starts the Streamlit server. In a desktop environment, it also
+        creates the desktop window. In a container, it runs in web-only mode.
         """
-        logger.info("Starting Financial Risk Assessment Desktop Application")
-        
+        logger.info("Starting Financial Risk Assessment Application")
+
         try:
             # Start the Streamlit server
             if not self.start_streamlit_server():
                 logger.error("Failed to start Streamlit server")
                 return
-            
-            # Create and show the desktop window
-            self.create_window()
-            
+
+            # Check for container environment to determine execution mode
+            if os.environ.get('CONTAINER_ENV'):
+                logger.info("Running in container (web-only mode).")
+                logger.info(f"Access the application at {self.streamlit_url}")
+                logger.info("Application is running. Press Ctrl+C to stop.")
+                # Wait for shutdown signal
+                self.shutdown_event.wait()
+            else:
+                logger.info("Running in desktop mode.")
+                # Create and show the desktop window
+                self.create_window()
+
         except KeyboardInterrupt:
             logger.info("Application interrupted by user")
         except Exception as e:
