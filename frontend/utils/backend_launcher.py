@@ -72,13 +72,18 @@ def start_flask_backend():
     python_executable = sys.executable
 
     try:
+        # Set creation flags for subprocess based on the operating system
+        creation_flags = 0
+        if os.name == 'nt':  # For Windows
+            creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP
+
         _flask_process = subprocess.Popen(
             [python_executable, "-m", "flask", "run", f"--port={FLASK_PORT}"],
             cwd=backend_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,  # Redirect stderr to stdout
             text=True,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+            creationflags=creation_flags
         )
         print(f"Flask backend process started with PID: {_flask_process.pid}")
         atexit.register(kill_flask_backend)
