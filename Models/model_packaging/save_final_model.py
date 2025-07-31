@@ -99,9 +99,10 @@ def create_model_package(model, metrics, run_id, X_test, y_test):
             'training_date': datetime.now().isoformat(),
             'model_type': 'XGBoost Regressor',
             'feature_count': len(X_test.columns),
-            'test_rmse': metrics.get('test_rmse'),
             'mlflow_run_id': run_id
         }
+        # Add all calculated performance metrics to the metadata
+        metadata.update(metrics)
         with open(metadata_path, 'w') as f:
             json.dump(metadata, f, indent=2)
         logging.info(f"Saved model metadata to {metadata_path}")
