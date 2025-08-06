@@ -30,7 +30,7 @@ model_registry.db
 debug_data.py
 
 # HTML reports
-*.html
+*.HTML
 .env
 
 # Database files
@@ -52,6 +52,4 @@ focused_synthetic_loan_data.csv
 # Streamlit cache
 frontend/.streamlit/
 
-# Local config
-pytest.ini
 
