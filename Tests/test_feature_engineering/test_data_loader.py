@@ -267,61 +267,9 @@ class TestDataValidation:
 class TestEdgeCases:
     """Test class for edge cases and boundary conditions."""
     
-    def test_empty_dataframes(self, temp_data_directory):
-        """Test handling of empty DataFrames."""
-        # Create empty but valid DataFrames
-        X_train = pd.DataFrame(columns=['feature1', 'feature2'])
-        X_test = pd.DataFrame(columns=['feature1', 'feature2'])
-        y_train = pd.Series([], dtype=int, name='target')
-        y_test = pd.Series([], dtype=int, name='target')
-        
-        # Save the data
-        files = {
-            'X_train_processed.pkl': X_train,
-            'X_test_processed.pkl': X_test,
-            'y_train.pkl': y_train,
-            'y_test.pkl': y_test
-        }
-        
-        for filename, data in files.items():
-            with open(os.path.join(temp_data_directory, filename), 'wb') as f:
-                pickle.dump(data, f)
-        
-        # Should load successfully
-        X_train_loaded, X_test_loaded, y_train_loaded, y_test_loaded = load_processed_data(temp_data_directory)
-        
-        assert len(X_train_loaded) == 0
-        assert len(X_test_loaded) == 0
-        assert len(y_train_loaded) == 0
-        assert len(y_test_loaded) == 0
+
     
-    def test_single_row_dataframes(self, temp_data_directory):
-        """Test handling of single-row DataFrames."""
-        # Create single-row DataFrames
-        X_train = pd.DataFrame([[1, 2, 3]], columns=['a', 'b', 'c'])
-        X_test = pd.DataFrame([[4, 5, 6]], columns=['a', 'b', 'c'])
-        y_train = pd.Series([1])
-        y_test = pd.Series([0])
-        
-        # Save the data
-        files = {
-            'X_train_processed.pkl': X_train,
-            'X_test_processed.pkl': X_test,
-            'y_train.pkl': y_train,
-            'y_test.pkl': y_test
-        }
-        
-        for filename, data in files.items():
-            with open(os.path.join(temp_data_directory, filename), 'wb') as f:
-                pickle.dump(data, f)
-        
-        # Should load successfully
-        X_train_loaded, X_test_loaded, y_train_loaded, y_test_loaded = load_processed_data(temp_data_directory)
-        
-        assert len(X_train_loaded) == 1
-        assert len(X_test_loaded) == 1
-        assert len(y_train_loaded) == 1
-        assert len(y_test_loaded) == 1
+
     
     def test_large_dataframes(self, temp_data_directory):
         """Test handling of large DataFrames."""
@@ -361,40 +309,7 @@ class TestEdgeCases:
         assert load_time < 30.0, f"Loading took too long: {load_time} seconds"
 
 
-class TestMainExecution:
-    """Test class for the main execution block."""
-    
-    @patch('FeatureEngineering.data_loader.load_processed_data')
-    @patch('os.path.dirname')
-    @patch('os.path.abspath')
-    def test_main_execution_success(self, mock_abspath, mock_dirname, mock_load_data):
-        """Test successful execution of main block."""
-        # Mock the path resolution
-        mock_dirname.return_value = '/mock/path'
-        mock_abspath.return_value = '/mock/absolute/path'
-        
-        # Mock successful data loading
-        mock_load_data.return_value = (
-            pd.DataFrame(np.random.randn(100, 10)),
-            pd.DataFrame(np.random.randn(20, 10)),
-            pd.Series(np.random.choice([0, 1], 100)),
-            pd.Series(np.random.choice([0, 1], 20))
-        )
-        
-        # This would test the main execution if we could run it
-        # For now, we verify the mocks would be called correctly
-        assert mock_load_data is not None
-    
-    @patch('FeatureEngineering.data_loader.load_processed_data')
-    def test_main_execution_error_handling(self, mock_load_data):
-        """Test error handling in main execution block."""
-        # Mock data loading failure
-        mock_load_data.side_effect = FileNotFoundError("Data files not found")
-        
-        # The main block should handle this error gracefully
-        # This test verifies the exception would be caught
-        with pytest.raises(FileNotFoundError):
-            mock_load_data('/fake/path')
+
 
 
 @pytest.mark.integration

@@ -5,38 +5,133 @@ This module contains shared fixtures and configuration for all test modules.
 It provides mock data, model instances, and test clients for comprehensive testing.
 """
 
-import os
 import sys
+import os
+# Force XGBoost to use CPU during tests to avoid device mismatch warnings
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+from pathlib import Path
 import pytest
 import pandas as pd
 import numpy as np
+import io
 from unittest.mock import Mock, MagicMock
 from datetime import datetime, timedelta
 import tempfile
 import shutil
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, get_origin, get_args
 import pickle
+import inspect
+from enum import Enum
 
 # Add project root to Python path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+project_root = str(Path(__file__).parent.parent.resolve())
 sys.path.insert(0, project_root)
 
-# Import project modules with fallbacks
+# Import RawData model
+from shared.models.raw_data import RawData
+
+# Import Flask app for testing
 try:
-    from FeatureEngineering.schema_validator import RAW_FEATURE_SCHEMA
+    from backend.app import create_app
 except ImportError:
-    # Fallback schema for testing
-    RAW_FEATURE_SCHEMA = [
-        'ApplicationDate', 'Age', 'AnnualIncome', 'CreditScore', 'EmploymentStatus',
-        'EducationLevel', 'Experience', 'LoanAmount', 'LoanDuration', 'MaritalStatus',
-        'NumberOfDependents', 'HomeOwnershipStatus', 'MonthlyDebtPayments',
-        'CreditCardUtilizationRate', 'NumberOfOpenCreditLines', 'NumberOfCreditInquiries',
-        'DebtToIncomeRatio', 'BankruptcyHistory', 'LoanPurpose', 'PreviousLoanDefaults',
-        'PaymentHistory', 'LengthOfCreditHistory', 'SavingsAccountBalance',
-        'CheckingAccountBalance', 'TotalAssets', 'TotalLiabilities', 'MonthlyIncome',
-        'UtilityBillsPaymentHistory', 'JobTenure', 'NetWorth', 'BaseInterestRate',
-        'InterestRate', 'MonthlyLoanPayment', 'TotalDebtToIncomeRatio'
-    ]
+    # Create mock Flask app for testing if module not available
+    from flask import Flask
+    
+    def create_app():
+        """Mock implementation of Flask app creation."""
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        return app
+
+VALID_EMPLOYMENT_STATUSES = ['Employed', 'Self-Employed', 'Unemployed']
+VALID_HOME_OWNERSHIP = ['Own', 'Rent', 'Mortgage', 'Other']
+VALID_LOAN_PURPOSES = ['Home', 'Auto', 'Education', 'Debt Consolidation', 'Other']
+
+def get_valid_raw_data() -> dict:
+    """Return a canonical, always-valid RawData dict for testing."""
+    return {
+        'ApplicationDate': '2024-01-15',
+        'Age': 35,
+        'CreditScore': 720,
+        'EmploymentStatus': 'Employed',
+        'EducationLevel': 'Bachelor',
+        'Experience': 10,
+        'LoanAmount': 250000.0,
+        'LoanDuration': 360,
+        'NumberOfDependents': 2,
+        'HomeOwnershipStatus': 'Mortgage',
+        'MonthlyDebtPayments': 1500.0,
+        'CreditCardUtilizationRate': 0.25,
+        'NumberOfOpenCreditLines': 5,
+        'NumberOfCreditInquiries': 2,
+        'DebtToIncomeRatio': 0.35,
+        'SavingsAccountBalance': 25000.0,
+        'CheckingAccountBalance': 5000.0,
+        'MonthlyIncome': 6250.0,
+        'AnnualIncome': 75000.0,
+        'LoanPurpose': 'Home',
+        'BankruptcyHistory': 0,
+        'PaymentHistory': 2,
+        'UtilityBillsPaymentHistory': 0.95,
+        'PreviousLoanDefaults': 0,
+        'InterestRate': 0.05,
+        'TotalAssets': 350000,
+        'TotalLiabilities': 180000,
+        'NetWorth': 170000,
+        'LengthOfCreditHistory': 120,
+        'JobTenure': 60,
+        'MonthlyLoanPayment': 1200.0
+    }
+
+def generate_valid_rawdata_sample(n_samples=1):
+    """Generate valid test data samples with PascalCase field names."""
+    data = {
+        'ApplicationDate': [datetime.now().strftime('%Y-%m-%d') for _ in range(n_samples)],
+        'Age': np.random.randint(18, 100, n_samples).astype(int),
+        'AnnualIncome': np.random.uniform(12000, 600000, n_samples).astype(float),
+        'CreditScore': np.random.randint(300, 850, n_samples).astype(int),
+        'EmploymentStatus': np.random.choice(['Employed', 'Self-Employed', 'Unemployed'], n_samples),
+        'EducationLevel': np.random.choice(['High School', 'Associate', 'Bachelor', 'Master', 'Doctorate'], n_samples),
+        'Experience': np.random.randint(0, 50, n_samples).astype(int),
+        'LoanAmount': np.random.uniform(1000, 1000000, n_samples).astype(float),
+        'LoanDuration': np.random.randint(1, 360, n_samples).astype(int),
+        'NumberOfDependents': np.random.randint(0, 10, n_samples).astype(int),
+        'HomeOwnershipStatus': np.random.choice(['Own', 'Rent', 'Mortgage', 'Other'], n_samples),
+        'MonthlyDebtPayments': np.random.uniform(0, 5000, n_samples).astype(float),
+        'CreditCardUtilizationRate': np.random.uniform(0, 1, n_samples).astype(float),
+        'NumberOfOpenCreditLines': np.random.randint(0, 20, n_samples).astype(int),
+        'NumberOfCreditInquiries': np.random.randint(0, 10, n_samples).astype(int),
+        'DebtToIncomeRatio': np.random.uniform(0, 1, n_samples).astype(float),
+        'BankruptcyHistory': np.random.randint(0, 1, n_samples).astype(int),
+        'LoanPurpose': np.random.choice(['Home', 'Auto', 'Education', 'Debt Consolidation', 'Other'], n_samples),
+        'PreviousLoanDefaults': np.random.randint(0, 1, n_samples).astype(int),
+        'PaymentHistory': np.random.randint(0, 3, n_samples).astype(int),
+        'LengthOfCreditHistory': np.random.randint(0, 240, n_samples).astype(int),
+        'SavingsAccountBalance': np.random.uniform(0, 100000, n_samples).astype(float),
+        'CheckingAccountBalance': np.random.uniform(0, 100000, n_samples).astype(float),
+        'TotalAssets': np.random.randint(0, 1000000, n_samples).astype(int),
+        'TotalLiabilities': np.random.randint(0, 500000, n_samples).astype(int),
+        'MonthlyIncome': np.random.uniform(1000, 20000, n_samples).astype(float),
+        'UtilityBillsPaymentHistory': np.random.uniform(0, 1, n_samples).astype(float),
+        'JobTenure': np.random.randint(0, 240, n_samples).astype(int),
+        'NetWorth': np.random.randint(-100000, 1000000, n_samples).astype(int),
+        'InterestRate': np.random.uniform(0, 1, n_samples).astype(float),
+        'MonthlyLoanPayment': np.random.uniform(100, 5000, n_samples).astype(float)
+    }
+    return pd.DataFrame(data)
+
+# Define the raw feature schema for testing (matches RawData model fields)
+RAW_FEATURE_SCHEMA = [
+    'ApplicationDate', 'Age', 'AnnualIncome', 'CreditScore', 'EmploymentStatus',
+    'EducationLevel', 'Experience', 'LoanAmount', 'LoanDuration',
+    'NumberOfDependents', 'HomeOwnershipStatus', 'MonthlyDebtPayments',
+    'CreditCardUtilizationRate', 'NumberOfOpenCreditLines', 'NumberOfCreditInquiries',
+    'DebtToIncomeRatio', 'BankruptcyHistory', 'LoanPurpose', 'PreviousLoanDefaults',
+    'PaymentHistory', 'LengthOfCreditHistory', 'SavingsAccountBalance',
+    'CheckingAccountBalance', 'TotalAssets', 'TotalLiabilities', 'MonthlyIncome',
+    'UtilityBillsPaymentHistory', 'JobTenure', 'NetWorth', 'BaseInterestRate',
+    'InterestRate', 'MonthlyLoanPayment', 'TotalDebtToIncomeRatio'
+]
 
 try:
     from backend.app import create_app
@@ -67,52 +162,26 @@ def project_root_path():
 @pytest.fixture(scope="session")
 def sample_loan_data():
     """
-    Fixture providing sample loan data matching the expected schema.
+    Fixture providing sample loan data using schema-based generation.
+    
+    Uses RawData model introspection to automatically generate valid test data
+    that matches all field constraints and validation rules.
     
     Returns:
         pd.DataFrame: Sample loan data with all required columns
     """
-    np.random.seed(42)  # For reproducible test data
-    n_samples = 100
+    df = pd.DataFrame(generate_valid_rawdata_sample(n_samples=100))
     
-    data = {
-        'ApplicationDate': pd.date_range('2023-01-01', periods=n_samples, freq='D'),
-        'Age': np.random.randint(18, 80, n_samples),
-        'AnnualIncome': np.random.normal(50000, 15000, n_samples).clip(20000, 200000),
-        'CreditScore': np.random.randint(300, 850, n_samples),
-        'EmploymentStatus': np.random.choice(['Employed', 'Self-employed', 'Unemployed'], n_samples),
-        'EducationLevel': np.random.choice(['High School', 'Bachelor', 'Master', 'PhD'], n_samples),
-        'Experience': np.random.randint(0, 40, n_samples),
-        'LoanAmount': np.random.normal(25000, 10000, n_samples).clip(1000, 100000),
-        'LoanDuration': np.random.choice([12, 24, 36, 48, 60], n_samples),
-        'MaritalStatus': np.random.choice(['Single', 'Married', 'Divorced'], n_samples),
-        'NumberOfDependents': np.random.randint(0, 5, n_samples),
-        'HomeOwnershipStatus': np.random.choice(['Own', 'Rent', 'Mortgage'], n_samples),
-        'MonthlyDebtPayments': np.random.normal(1000, 500, n_samples).clip(0, 5000),
-        'CreditCardUtilizationRate': np.random.uniform(0, 1, n_samples),
-        'NumberOfOpenCreditLines': np.random.randint(1, 10, n_samples),
-        'NumberOfCreditInquiries': np.random.randint(0, 10, n_samples),
-        'DebtToIncomeRatio': np.random.uniform(0, 0.8, n_samples),
-        'BankruptcyHistory': np.random.choice([0, 1], n_samples, p=[0.9, 0.1]),
-        'LoanPurpose': np.random.choice(['Home', 'Auto', 'Personal', 'Education'], n_samples),
-        'PreviousLoanDefaults': np.random.randint(0, 3, n_samples),
-        'PaymentHistory': np.random.uniform(0, 1, n_samples),
-        'LengthOfCreditHistory': np.random.randint(1, 30, n_samples),
-        'SavingsAccountBalance': np.random.normal(10000, 5000, n_samples).clip(0, 50000),
-        'CheckingAccountBalance': np.random.normal(2000, 1000, n_samples).clip(0, 10000),
-        'TotalAssets': np.random.normal(50000, 25000, n_samples).clip(0, 200000),
-        'TotalLiabilities': np.random.normal(20000, 15000, n_samples).clip(0, 100000),
-        'MonthlyIncome': np.random.normal(4000, 1200, n_samples).clip(1500, 15000),
-        'UtilityBillsPaymentHistory': np.random.uniform(0, 1, n_samples),
-        'JobTenure': np.random.randint(0, 20, n_samples),
-        'NetWorth': np.random.normal(30000, 20000, n_samples),
-        'BaseInterestRate': np.random.uniform(0.03, 0.08, n_samples),
-        'InterestRate': np.random.uniform(0.05, 0.15, n_samples),
-        'MonthlyLoanPayment': np.random.normal(500, 200, n_samples).clip(50, 2000),
-        'TotalDebtToIncomeRatio': np.random.uniform(0, 1, n_samples)
-    }
+    # Validate that the generated data passes RawData model validation
+    try:
+        test_record = df.iloc[0].to_dict()
+        RawData.model_validate(test_record)
+        print(f"✅ sample_loan_data fixture validation passed for {len(df)} records")
+    except Exception as e:
+        print(f"❌ sample_loan_data fixture validation failed: {e}")
+        raise
     
-    return pd.DataFrame(data)
+    return df
 
 
 @pytest.fixture(scope="session")
@@ -130,52 +199,26 @@ def sample_loan_labels():
 @pytest.fixture
 def small_loan_data():
     """
-    Fixture providing a small dataset for quick tests.
+    Fixture providing a small dataset for quick tests using schema-based generation.
+    
+    Uses RawData model introspection to automatically generate valid test data
+    that matches all field constraints and validation rules.
     
     Returns:
         pd.DataFrame: Small loan dataset with 10 samples
     """
-    np.random.seed(42)
-    n_samples = 10
+    df = pd.DataFrame(generate_valid_rawdata_sample(n_samples=10))
     
-    data = {
-        'ApplicationDate': pd.date_range('2023-01-01', periods=n_samples, freq='D'),
-        'Age': np.random.randint(25, 65, n_samples),
-        'AnnualIncome': np.random.normal(50000, 10000, n_samples).clip(30000, 80000),
-        'CreditScore': np.random.randint(600, 800, n_samples),
-        'EmploymentStatus': ['Employed'] * n_samples,
-        'EducationLevel': ['Bachelor'] * n_samples,
-        'Experience': np.random.randint(2, 15, n_samples),
-        'LoanAmount': np.random.normal(20000, 5000, n_samples).clip(10000, 40000),
-        'LoanDuration': [36] * n_samples,
-        'MaritalStatus': ['Married'] * n_samples,
-        'NumberOfDependents': np.random.randint(0, 3, n_samples),
-        'HomeOwnershipStatus': ['Own'] * n_samples,
-        'MonthlyDebtPayments': np.random.normal(800, 200, n_samples).clip(400, 1500),
-        'CreditCardUtilizationRate': np.random.uniform(0.1, 0.5, n_samples),
-        'NumberOfOpenCreditLines': np.random.randint(2, 6, n_samples),
-        'NumberOfCreditInquiries': np.random.randint(0, 3, n_samples),
-        'DebtToIncomeRatio': np.random.uniform(0.2, 0.5, n_samples),
-        'BankruptcyHistory': [0] * n_samples,
-        'LoanPurpose': ['Home'] * n_samples,
-        'PreviousLoanDefaults': [0] * n_samples,
-        'PaymentHistory': np.random.uniform(0.8, 1.0, n_samples),
-        'LengthOfCreditHistory': np.random.randint(5, 20, n_samples),
-        'SavingsAccountBalance': np.random.normal(8000, 2000, n_samples).clip(3000, 15000),
-        'CheckingAccountBalance': np.random.normal(1500, 500, n_samples).clip(500, 3000),
-        'TotalAssets': np.random.normal(40000, 10000, n_samples).clip(20000, 70000),
-        'TotalLiabilities': np.random.normal(15000, 5000, n_samples).clip(5000, 30000),
-        'MonthlyIncome': np.random.normal(4000, 800, n_samples).clip(2500, 6000),
-        'UtilityBillsPaymentHistory': np.random.uniform(0.9, 1.0, n_samples),
-        'JobTenure': np.random.randint(2, 10, n_samples),
-        'NetWorth': np.random.normal(25000, 8000, n_samples),
-        'BaseInterestRate': [0.05] * n_samples,
-        'InterestRate': np.random.uniform(0.06, 0.10, n_samples),
-        'MonthlyLoanPayment': np.random.normal(400, 100, n_samples).clip(250, 600),
-        'TotalDebtToIncomeRatio': np.random.uniform(0.3, 0.6, n_samples)
-    }
+    # Validate that the generated data passes RawData model validation
+    try:
+        test_record = df.iloc[0].to_dict()
+        RawData.model_validate(test_record)
+        print(f"[PASS] small_loan_data fixture validation passed for {len(df)} records")
+    except Exception as e:
+        print(f"[FAIL] small_loan_data fixture validation failed: {e}")
+        raise
     
-    return pd.DataFrame(data)
+    return df
 
 
 @pytest.fixture
@@ -289,21 +332,6 @@ def flask_test_client(app):
 
 
 @pytest.fixture
-def invalid_loan_data():
-    """
-    Fixture providing invalid loan data for testing validation.
-    
-    Returns:
-        pd.DataFrame: Invalid loan data missing required columns
-    """
-    return pd.DataFrame({
-        'Age': [25, 30, 35],
-        'Income': [50000, 60000, 70000],  # Wrong column name
-        'InvalidColumn': [1, 2, 3]  # Extra invalid column
-    })
-
-
-@pytest.fixture
 def csv_loan_data(small_loan_data):
     """
     Fixture providing loan data in CSV string format for API testing.
@@ -386,6 +414,55 @@ def sample_training_data():
     X = pd.DataFrame(np.random.randn(1000, 10), columns=[f'feature_{i}' for i in range(10)])
     y = pd.Series(np.random.choice([0, 1], 1000, p=[0.7, 0.3]))
     return X, y
+
+
+@pytest.fixture
+def data_with_known_issues():
+    """
+    Provides a DataFrame with a variety of known data quality issues for validation reporting tests.
+    This fixture is ideal for testing the accuracy of the warning generation system.
+    """
+    return pd.DataFrame({
+        'Age': [25, 'thirty', -5, 45],  # Wrong type, out of logical range
+        'AnnualIncome': [50000, 60000, 'high', 75000],  # Wrong type
+        'CreditScore': [700, 950, 250, 800],  # Out of standard range, low score
+        'LoanAmount': [10000, 5000, 1000, 20000],
+        'MonthlyDebtPayments': [500, 6000, 1200, 200], # Logically inconsistent with income
+        'ApplicationDate': ['2023-01-01', 'not-a-date', '2023-01-03', '2023-01-04'], # Malformed date
+        'EmploymentStatus': ['Employed', 'Self-employed', None, ''] # Missing and empty values
+    })
+
+@pytest.fixture
+def validation_data_factory():
+    """
+    Provides a factory function to generate DataFrames with controlled data quality issues.
+    
+    Usage:
+        df = validation_data_factory(issue_type='missing_values', field='Age', num_rows=10)
+        df = validation_data_factory(issue_type='wrong_type', field='CreditScore', value='bad-score')
+    """
+    def _create_data(issue_type: str, field: str, num_rows: int = 5, value: any = None):
+        # Start with a valid base DataFrame
+        base_data = {
+            'Age': np.random.randint(18, 80, num_rows),
+            'AnnualIncome': np.random.normal(50000, 15000, num_rows),
+            'CreditScore': np.random.randint(300, 850, num_rows),
+            'LoanAmount': np.random.normal(25000, 10000, num_rows),
+        }
+        df = pd.DataFrame(base_data)
+
+        if issue_type == 'missing_values':
+            df[field] = np.nan
+        elif issue_type == 'wrong_type':
+            df[field] = value if value is not None else 'wrong-type'
+        elif issue_type == 'out_of_range':
+            df[field] = value if value is not None else -999
+        
+        return df
+        
+    return _create_data
+
+
 
 
 # Test data validation helpers
