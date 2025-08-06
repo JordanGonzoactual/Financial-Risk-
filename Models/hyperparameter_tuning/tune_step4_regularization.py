@@ -35,7 +35,7 @@ def run_regularization_tuning(X_train, X_val, y_train, y_val, base_params, n_tri
             mlflow.log_params(params)
 
             # Train the model on the training set and evaluate on the validation set
-            model = xgb.XGBRegressor(**params)
+            model = xgb.XGBRegressor(enable_categorical=True, **params)
             model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
 
             # Log the best iteration
