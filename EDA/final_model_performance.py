@@ -33,6 +33,7 @@ def create_performance_chart(metrics, model_name, save_path=None):
         'RMSE': 'test_rmse',
         'MAE': 'test_mae',
         'R-squared (R²)': 'test_r2',
+        'MAPE (%)': 'test_mape',
     }
 
     metric_values = [metrics.get(key, 0) for key in metric_keys.values()]
@@ -41,7 +42,7 @@ def create_performance_chart(metrics, model_name, save_path=None):
     plt.style.use('seaborn-v0_8-whitegrid')
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
     bars = ax.bar(metric_labels, metric_values, color=colors, alpha=0.8)
 
     ax.set_title(f'{model_name} - Final Performance Metrics', fontsize=16, fontweight='bold')
