@@ -4,7 +4,7 @@ from scipy import stats
 from datetime import datetime, timedelta
 
 # Number of samples
-num_samples = 200
+num_samples = 15000
 
 # Seed for reproducibility
 np.random.seed(42)
