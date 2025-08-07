@@ -3,17 +3,18 @@ import pandas as pd
 import plotly.express as px
 from .state import AppState
 
-# Import schema for data requirements display
-try:
-    import sys
-    import os
-    # Add the project root to the path to import from FeatureEngineering
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    sys.path.append(project_root)
-    from FeatureEngineering.schema_validator import RAW_FEATURE_SCHEMA
-except ImportError as e:
-    RAW_FEATURE_SCHEMA = None
-    print(f"Warning: Could not import RAW_FEATURE_SCHEMA: {e}")
+# Define required columns for UI display (matches RawData model)
+RAW_FEATURE_SCHEMA = [
+    'ApplicationDate', 'Age', 'AnnualIncome', 'CreditScore', 'EmploymentStatus',
+    'EducationLevel', 'Experience', 'LoanAmount', 'LoanDuration',
+    'NumberOfDependents', 'HomeOwnershipStatus', 'MonthlyDebtPayments',
+    'CreditCardUtilizationRate', 'NumberOfOpenCreditLines', 'NumberOfCreditInquiries',
+    'DebtToIncomeRatio', 'BankruptcyHistory', 'LoanPurpose', 'PreviousLoanDefaults',
+    'PaymentHistory', 'LengthOfCreditHistory', 'SavingsAccountBalance',
+    'CheckingAccountBalance', 'TotalAssets', 'TotalLiabilities', 'MonthlyIncome',
+    'UtilityBillsPaymentHistory', 'JobTenure', 'NetWorth', 'BaseInterestRate',
+    'InterestRate', 'MonthlyLoanPayment', 'TotalDebtToIncomeRatio'
+]
 
 class DataRequirementsComponent:
     """Displays the required data format information for CSV uploads."""
@@ -51,23 +52,21 @@ class DataRequirementsComponent:
         
         col1, col2, col3 = st.columns(3)
         
-        with col1:
-            st.markdown("**Section 1:**")
-            for i, column in enumerate(RAW_FEATURE_SCHEMA[:cols_per_section]):
-                st.write(f"• {column}")
+        # Use column methods directly (not as context managers)
+        col1.markdown("**Section 1:**")
+        for i, column in enumerate(RAW_FEATURE_SCHEMA[:cols_per_section]):
+            col1.write(f"• {column}")
         
-        with col2:
-            st.markdown("**Section 2:**")
-            start_idx = cols_per_section
-            end_idx = min(cols_per_section * 2, total_columns)
-            for column in RAW_FEATURE_SCHEMA[start_idx:end_idx]:
-                st.write(f"• {column}")
+        col2.markdown("**Section 2:**")
+        start_idx = cols_per_section
+        end_idx = min(cols_per_section * 2, total_columns)
+        for column in RAW_FEATURE_SCHEMA[start_idx:end_idx]:
+            col2.write(f"• {column}")
         
-        with col3:
-            st.markdown("**Section 3:**")
-            start_idx = cols_per_section * 2
-            for column in RAW_FEATURE_SCHEMA[start_idx:]:
-                st.write(f"• {column}")
+        col3.markdown("**Section 3:**")
+        start_idx = cols_per_section * 2
+        for column in RAW_FEATURE_SCHEMA[start_idx:]:
+            col3.write(f"• {column}")
         
         # Additional helpful information
         with st.expander("💡 Tips for Data Preparation"):
@@ -99,6 +98,9 @@ class FileUploadComponent:
         if uploaded_file:
             # Use the controller to handle the file, which also manages state
             self.controller.handle_file_upload(uploaded_file)
+            # Immediately show a small preview after upload for UX and tests
+            if AppState.get_state('raw_data') is not None:
+                st.dataframe(AppState.get_state('raw_data').head(10))
 
 class DataPreviewComponent:
     """Displays a preview of the uploaded data and handles the validation step."""
