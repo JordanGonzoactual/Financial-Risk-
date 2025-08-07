@@ -42,6 +42,6 @@ class ColumnDropper(BaseTransformer):
             return X
 
         X_transformed = X.drop(columns=cols_to_drop_present)
-        self._log_transformation("Columns dropped successfully.")
+        self._log_transformation(f"Successfully dropped columns: {cols_to_drop_present}")
 
         return X_transformed

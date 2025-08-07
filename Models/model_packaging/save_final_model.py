@@ -63,6 +63,18 @@ def load_optimized_parameters(params_path):
         logging.error(f"An unexpected error occurred while loading parameters: {e}")
         raise
 
+def mean_absolute_percentage_error(y_true, y_pred):
+    """
+    Calculates the Mean Absolute Percentage Error (MAPE).
+    Handles division by zero by excluding zero-valued true observations.
+    """
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    # Avoid division by zero; filter out true values that are zero
+    mask = y_true != 0
+    if not np.any(mask):
+        return np.nan  # Return NaN if all true values are zero
+    return np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100
+
 def calculate_performance_metrics(model, X, y, prefix):
     """Calculates and logs performance metrics for a given dataset."""
     logging.info(f"Calculating performance metrics for {prefix} set...")
@@ -71,11 +83,13 @@ def calculate_performance_metrics(model, X, y, prefix):
     rmse = np.sqrt(mean_squared_error(y, predictions))
     mae = mean_absolute_error(y, predictions)
     r2 = r2_score(y, predictions)
-    
+    mape = mean_absolute_percentage_error(y, predictions)
+
     metrics = {
         f"{prefix}_rmse": rmse,
         f"{prefix}_mae": mae,
-        f"{prefix}_r2": r2
+        f"{prefix}_r2": r2,
+        f"{prefix}_mape": mape
     }
     
     logging.info(f"{prefix.capitalize()} Set Metrics: {json.dumps(metrics, indent=2)}")

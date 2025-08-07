@@ -30,6 +30,24 @@ sys.path.insert(0, project_root)
 # Import RawData model
 from shared.models.raw_data import RawData
 
+# Thread-safe reset for ModelService singleton to ensure test isolation
+@pytest.fixture(autouse=True, scope="module")
+def reset_model_service_singleton():
+    try:
+        from backend.model_service import ModelService
+        # Acquire class lock to safely reset
+        with ModelService._lock:
+            ModelService._instance = None
+    except Exception:
+        pass
+    yield
+    try:
+        from backend.model_service import ModelService
+        with ModelService._lock:
+            ModelService._instance = None
+    except Exception:
+        pass
+
 # Import Flask app for testing
 try:
     from backend.app import create_app
@@ -75,6 +93,8 @@ def get_valid_raw_data() -> dict:
         'UtilityBillsPaymentHistory': 0.95,
         'PreviousLoanDefaults': 0,
         'InterestRate': 0.05,
+        'BaseInterestRate': 0.045,
+        'TotalDebtToIncomeRatio': 0.40,
         'TotalAssets': 350000,
         'TotalLiabilities': 180000,
         'NetWorth': 170000,
@@ -115,7 +135,9 @@ def generate_valid_rawdata_sample(n_samples=1):
         'UtilityBillsPaymentHistory': np.random.uniform(0, 1, n_samples).astype(float),
         'JobTenure': np.random.randint(0, 240, n_samples).astype(int),
         'NetWorth': np.random.randint(-100000, 1000000, n_samples).astype(int),
+        'BaseInterestRate': np.random.uniform(0, 1, n_samples).astype(float),
         'InterestRate': np.random.uniform(0, 1, n_samples).astype(float),
+        'TotalDebtToIncomeRatio': np.random.uniform(0, 1, n_samples).astype(float),
         'MonthlyLoanPayment': np.random.uniform(100, 5000, n_samples).astype(float)
     }
     return pd.DataFrame(data)

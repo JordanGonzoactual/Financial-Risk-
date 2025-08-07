@@ -3,6 +3,7 @@ import pickle
 import pandas as pd
 import logging
 from typing import Optional, List
+import json
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -58,6 +59,24 @@ class InferencePipeline:
         """
         if self.pipeline is None or self.expected_features is None:
             raise RuntimeError("Pipeline artifacts are not loaded.")
+
+        # Prefill missing raw columns to avoid empty DataFrame errors in transformers
+        try:
+            meta_path = os.path.join(self.artifacts_dir, 'transformation_metadata.json')
+            if os.path.exists(meta_path):
+                with open(meta_path, 'r') as f:
+                    meta = json.load(f)
+                numeric_cols = meta.get('numeric_columns', [])
+                categorical_cols = meta.get('categorical_columns', [])
+                # Add missing numeric columns with 0.0 and categoricals with empty string
+                for col in numeric_cols:
+                    if col not in df.columns:
+                        df[col] = 0.0
+                for col in categorical_cols:
+                    if col not in df.columns:
+                        df[col] = ''
+        except Exception as e:
+            logger.warning(f"Failed to prefill missing raw columns: {e}")
 
         logger.info("Transforming raw data with the preprocessing pipeline...")
         df_processed = self.pipeline.transform(df)

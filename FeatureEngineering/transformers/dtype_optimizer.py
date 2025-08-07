@@ -20,6 +20,14 @@ class DtypeOptimizer(BaseTransformer):
         """
         super().__init__(verbose=verbose)
         self.optimizations_ = {}
+        # Define specific dtype conversions for XGBoost compatibility
+        self.xgboost_dtype_conversions = {
+            'BankruptcyHistory': 'float64',
+            'PreviousLoanDefaults': 'category', 
+            'PaymentHistory': 'int64',
+            'UtilityBillsPaymentHistory': 'float64',
+            'LoanPurpose': 'category'
+        }
 
     def fit(self, X: pd.DataFrame, y=None):
         """
@@ -29,6 +37,12 @@ class DtypeOptimizer(BaseTransformer):
         self._log_transformation("Fitting DtypeOptimizer...")
 
         for col in self.feature_names_in_:
+            # Apply XGBoost-specific dtype conversions first
+            if col in self.xgboost_dtype_conversions:
+                self.optimizations_[col] = self.xgboost_dtype_conversions[col]
+                self._log_transformation(f"XGBoost conversion: '{col}' -> {self.xgboost_dtype_conversions[col]}")
+                continue
+                
             dtype = X[col].dtype
 
             # CRITICAL: Preserve existing CategoricalDtype objects

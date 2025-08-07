@@ -50,7 +50,7 @@ class PolynomialTransformer(BaseTransformer):
         self._log_transformation("Fitting PolynomialTransformer...")
 
         if self.target_features is None:
-            self.target_features = ['AnnualIncome', 'CreditScore', 'LoanAmount', 'TotalAssets', 'TotalLiabilities', 'NetWorth']
+            self.target_features = ['AnnualIncome', 'CreditScore', 'TotalAssets', 'TotalLiabilities', 'NetWorth']
             self._log_transformation(f"No target features specified. Defaulting to: {self.target_features}")
 
         self.available_features_ = [col for col in self.target_features if col in self.feature_names_in_]

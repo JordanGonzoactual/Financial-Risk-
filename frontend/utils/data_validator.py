@@ -6,7 +6,18 @@ import os
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.insert(0, PROJECT_ROOT)
 
-from FeatureEngineering.schema_validator import RAW_FEATURE_SCHEMA
+# Define required columns for CSV validation (matches RawData model)
+RAW_FEATURE_SCHEMA = [
+    'ApplicationDate', 'Age', 'AnnualIncome', 'CreditScore', 'EmploymentStatus',
+    'EducationLevel', 'Experience', 'LoanAmount', 'LoanDuration',
+    'NumberOfDependents', 'HomeOwnershipStatus', 'MonthlyDebtPayments',
+    'CreditCardUtilizationRate', 'NumberOfOpenCreditLines', 'NumberOfCreditInquiries',
+    'DebtToIncomeRatio', 'BankruptcyHistory', 'LoanPurpose', 'PreviousLoanDefaults',
+    'PaymentHistory', 'LengthOfCreditHistory', 'SavingsAccountBalance',
+    'CheckingAccountBalance', 'TotalAssets', 'TotalLiabilities', 'MonthlyIncome',
+    'UtilityBillsPaymentHistory', 'JobTenure', 'NetWorth', 'BaseInterestRate',
+    'InterestRate', 'MonthlyLoanPayment', 'TotalDebtToIncomeRatio'
+]
 
 class CSVValidator:
     REQUIRED_COLUMNS = RAW_FEATURE_SCHEMA

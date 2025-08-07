@@ -64,6 +64,28 @@ class ModelService:
 
         try:
             logging.info(f"Processing a batch of {len(df_raw)} records.")
+
+            # Guard against completely invalid input
+            if df_raw is None or df_raw.empty or df_raw.shape[1] == 0:
+                raise ValueError("Input DataFrame is empty or has no columns")
+
+            # Validate that at least some expected raw columns are present
+            try:
+                import json as _json
+                artifacts_dir = os.path.join(project_root, 'FeatureEngineering', 'artifacts')
+                meta_path = os.path.join(artifacts_dir, 'transformation_metadata.json')
+                if os.path.exists(meta_path):
+                    with open(meta_path, 'r') as f:
+                        _meta = _json.load(f)
+                    _raw_cols = set(_meta.get('numeric_columns', []) + _meta.get('categorical_columns', []))
+                    overlap = set(df_raw.columns) & _raw_cols
+                    if len(overlap) == 0:
+                        raise ValueError("No valid input columns provided; none match expected raw schema")
+            except ValueError:
+                # re-raise value errors we deliberately raised
+                raise
+            except Exception as e:
+                logging.warning(f"Could not validate raw columns against metadata: {e}")
             
             # 1. Transform raw data using the preprocessing pipeline
             # The pipeline handles all transformations and schema validation internally.

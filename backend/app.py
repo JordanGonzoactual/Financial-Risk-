@@ -4,8 +4,9 @@ import os
 import io
 import pandas as pd
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from pydantic import ValidationError
 
 # Add project root to Python path to allow imports from other directories
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -14,7 +15,7 @@ sys.path.insert(0, project_root)
 # Import the singleton model service
 # This will initialize the service and load the model on startup
 from backend.model_service import model_service
-from FeatureEngineering.schema_validator import validate_raw_data_schema
+from shared.models.raw_data import RawData
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -49,6 +50,31 @@ def create_app():
             return jsonify(info), 503
         return jsonify(info), 200
 
+    @app.route('/', methods=['GET'])
+    def index():
+        return send_from_directory('../frontend', 'index.html')
+
+    @app.route('/static/<path:path>')
+    def send_static(path):
+        return send_from_directory('../frontend/static', path)
+
+    @app.route('/validate', methods=['POST'])
+    def validate():
+        if not request.is_json:
+            return jsonify({"error": "Request must be JSON"}), 400
+
+        data = request.get_json()
+        
+        try:
+            # Strict validation using RawData model
+            RawData.model_validate(data)
+            return jsonify({"status": "valid", "message": "Data validation passed"}), 200
+        except ValidationError as e:
+            return jsonify({
+                "error": "ValidationError", 
+                "details": str(e)
+            }), 400
+
     @app.route('/predict', methods=['POST'])
     def predict():
         """Endpoint to receive batch loan data and return risk predictions."""
@@ -64,23 +90,43 @@ def create_app():
             # 2. CSV Parsing
             csv_data = request.data.decode('utf-8')
             df = pd.read_csv(io.StringIO(csv_data))
-            logging.info("CSV parsed successfully.")
-            logging.info(f"DataFrame columns: {df.columns.tolist()}")
+            logging.info(f"CSV parsed successfully with {len(df)} records.")
 
-            # 3. Schema Validation
-            validate_raw_data_schema(df)
-            logging.info("Schema validation passed.")
+            # 3. Strict Schema Validation
+            # Validate each row using RawData model
+            records = df.to_dict(orient='records')
+            validated_records = []
+            
+            for i, record in enumerate(records):
+                try:
+                    validated_record = RawData.model_validate(record)
+                    # Use by_alias=True to get alias names that the pipeline expects
+                    validated_records.append(validated_record.model_dump(by_alias=True))
+                except ValidationError as e:
+                    logging.error(f"Validation error at row {i}: {str(e)}")
+                    return jsonify({
+                        "error": "ValidationError",
+                        "message": f"Data validation failed at row {i}",
+                        "details": str(e)
+                    }), 400
+            
+            logging.info("Strict schema validation complete.")
+            
+            # 4. Inference Pipeline (using validated data)
+            validated_df = pd.DataFrame(validated_records)
+            
+            # The model_service's predict_batch method will handle the pipeline transformation
+            logging.info("Calling inference pipeline and making predictions with validated data...")
+            predictions = model_service.predict_batch(validated_df)
+            logging.info("Inference and prediction call successful.")
 
-            # 4. Inference Pipeline
-            logging.info("Calling inference pipeline...")
-            predictions = model_service.predict_batch(df)
-            logging.info("Inference pipeline call successful.")
-
-            response_data = {"predictions": predictions.tolist()}
+            # 5. Construct Response with Predictions
+            response_data = {
+                "predictions": predictions.tolist()
+            }
             return jsonify(response_data), 200
 
-
-        except ValueError as e:
+        except (pd.errors.EmptyDataError, ValueError) as e:
             logging.error("Validation error during prediction", exc_info=True)
             error_message = str(e)
             details = {}
@@ -112,18 +158,6 @@ def create_app():
                 "message": "An unexpected error occurred on the server.",
                 "details": {"raw_message": str(e)}
             }), 500
-        except TypeError as e:
-            # Handle other type-related errors
-            logging.warning(f"Prediction failed due to a type error: {e}")
-            return jsonify({"error": "Invalid Data Type", "details": str(e)}), 400
-        except RuntimeError as e:
-            # Internal service errors
-            logging.error(f"Prediction failed due to a runtime error: {e}", exc_info=True)
-            return jsonify({"error": "Internal service error", "details": str(e)}), 500
-        except Exception as e:
-            # Catch-all for other unexpected errors
-            logging.error(f"An unexpected error occurred in the predict endpoint: {e}", exc_info=True)
-            return jsonify({"error": "An internal server error occurred."}), 500
 
     return app
 

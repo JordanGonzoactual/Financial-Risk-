@@ -37,7 +37,7 @@ debug_data.py
 *.db
 
 # Generated files
-*.json
+
 !Models/trained_models/model_metadata.json
 
 # Reports

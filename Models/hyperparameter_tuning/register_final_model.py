@@ -1,13 +1,22 @@
 import os
+import sys
 import json
 import logging
 import argparse
+import time
 import pandas as pd
 import xgboost as xgb
 import mlflow
 from mlflow.tracking import MlflowClient
 from mlflow.models.signature import infer_signature
 from sklearn.model_selection import train_test_split
+
+# Add project root to path to import custom modules
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(project_root)
+
+from FeatureEngineering.data_loader import load_processed_data
+from start_mlflow_server import start_mlflow_server
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -46,15 +55,16 @@ class ModelRegistrar:
 
     def _load_and_prepare_data(self):
         """Loads and prepares the full training data."""
-        logging.info(f"Loading training data from {self.data_path}")
+        logging.info(f"Loading processed data from {self.data_path}")
         try:
-            df = pd.read_csv(os.path.join(self.data_path, 'train.csv'))
+            X_train, X_test, y_train, y_test = load_processed_data(self.data_path)
             # For the final model, we train on the entire available training dataset.
-            self.X_train = df.drop('risk_rating', axis=1)
-            self.y_train = df['risk_rating']
+            # Combine train and test sets to get the full dataset
+            self.X_train = pd.concat([X_train, X_test], ignore_index=True)
+            self.y_train = pd.concat([y_train, y_test], ignore_index=True)
             logging.info(f"Training data loaded successfully. Shape: {self.X_train.shape}")
         except FileNotFoundError:
-            logging.error(f"Fatal: Training data file not found in {self.data_path}. Exiting.")
+            logging.error(f"Fatal: Processed data files not found in {self.data_path}. Exiting.")
             raise
 
     def _train_production_model(self):
@@ -64,7 +74,7 @@ class ModelRegistrar:
             return
 
         logging.info("Training the final production model...")
-        self.model = xgb.XGBRegressor(**self.final_params)
+        self.model = xgb.XGBRegressor(enable_categorical=True, **self.final_params)
         self.model.fit(self.X_train, self.y_train, verbose=False)
         logging.info("Final model training completed.")
 
@@ -91,6 +101,12 @@ class ModelRegistrar:
             logging.error("Model did not pass validation. Skipping registration.")
             return
 
+        # Start MLflow server and wait for it to initialize
+        logging.info("Starting MLflow server...")
+        start_mlflow_server()
+        logging.info("Waiting 15 seconds for MLflow server to initialize...")
+        time.sleep(15)
+
         logging.info(f"Registering model '{self.model_name}' to MLflow...")
         mlflow.set_tracking_uri(MLFLOW_CONFIG["tracking_uri"])
         mlflow.set_experiment(MLFLOW_CONFIG["experiment_name"])
@@ -109,17 +125,17 @@ class ModelRegistrar:
                 registered_model_name=self.model_name
             )
             
-            logging.info(f"Model registered successfully. Version: {model_info.version}")
+            logging.info(f"Model registered successfully. Version: {model_info.registered_model_version}")
 
             # Add tags and description to the registered model version
             client = MlflowClient()
             client.update_model_version(
                 name=self.model_name,
-                version=model_info.version,
+                version=model_info.registered_model_version,
                 description="This is the final production-candidate model trained on the full dataset."
             )
-            client.set_model_version_tag(name=self.model_name, version=model_info.version, key="status", value="production-candidate")
-            client.set_model_version_tag(name=self.model_name, version=model_info.version, key="validated", value="true")
+            client.set_model_version_tag(name=self.model_name, version=model_info.registered_model_version, key="status", value="production-candidate")
+            client.set_model_version_tag(name=self.model_name, version=model_info.registered_model_version, key="validated", value="true")
             
             logging.info("Added tags and description to the new model version.")
 
@@ -136,8 +152,8 @@ class ModelRegistrar:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Train and Register Final XGBoost Model.")
-    parser.add_argument('--params-path', type=str, default='final_optimized_params.json', help='Path to the final hyperparameters JSON file.')
-    parser.add_argument('--data-path', type=str, default='../../Data/processed/', help='Path to the directory containing training data.')
+    parser.add_argument('--params-path', type=str, default=os.path.join(os.path.dirname(__file__), 'final_optimized_params.json'), help='Path to the final hyperparameters JSON file.')
+    parser.add_argument('--data-path', type=str, default=os.path.join(project_root, 'Data', 'processed'), help='Path to the directory containing training data.')
     parser.add_argument('--model-name', type=str, default='xgboost-final-model', help='Name for the registered model in MLflow.')
 
     args = parser.parse_args()

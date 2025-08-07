@@ -5,9 +5,9 @@ import xgboost as xgb
 import numpy as np
 import pandas as pd
 import json
-from sklearn.metrics import mean_squared_error, mean_absolute_error
+import pickle
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from mlflow.models.signature import infer_signature
-import matplotlib.pyplot as plt
 import logging
 
 # Configure logging
@@ -34,7 +34,7 @@ def train_and_evaluate_final_model():
         return
 
     # 2. Load Final Hyperparameters
-    params_path = os.path.join(project_root, 'Models', 'hyperparameter_tuning', 'best_params_final.json')
+    params_path = os.path.join(project_root, 'Models', 'hyperparameter_tuning', 'final_optimized_params.json')
     try:
         with open(params_path, 'r') as f:
             final_params = json.load(f)
@@ -55,8 +55,8 @@ def train_and_evaluate_final_model():
 
         # 3. Train the Final Model
         logging.info("Training the final model on the full training dataset...")
-        final_model = xgb.XGBRegressor(**final_params)
-        final_model.fit(X_train, y_train, eval_metric='rmse', verbose=True)
+        final_model = xgb.XGBRegressor(enable_categorical=True, **final_params)
+        final_model.fit(X_train, y_train, verbose=True)
         logging.info("Final model training complete.")
 
         # 4. Evaluate on Test Set
@@ -65,78 +65,65 @@ def train_and_evaluate_final_model():
         rmse = np.sqrt(mean_squared_error(y_test, preds))
         mse = mean_squared_error(y_test, preds)
         mae = mean_absolute_error(y_test, preds)
+        r2 = r2_score(y_test, preds)
+        
+        # Calculate MAPE (Mean Absolute Percentage Error)
+        mape = np.mean(np.abs((y_test - preds) / y_test)) * 100
 
-        logging.info(f"Test Set Performance: RMSE={rmse:.4f}, MSE={mse:.4f}, MAE={mae:.4f}")
-        mlflow.log_metrics({"test_rmse": rmse, "test_mse": mse, "test_mae": mae})
+        logging.info(f"Test Set Performance:")
+        logging.info(f"  RMSE: {rmse:.4f}")
+        logging.info(f"  MSE: {mse:.4f}")
+        logging.info(f"  MAE: {mae:.4f}")
+        logging.info(f"  R²: {r2:.4f}")
+        logging.info(f"  MAPE: {mape:.4f}%")
+        
+        # Log all metrics to MLflow
+        mlflow.log_metrics({
+            "test_rmse": rmse, 
+            "test_mse": mse, 
+            "test_mae": mae,
+            "test_r2": r2,
+            "test_mape": mape
+        })
+
+        # Save metrics to model_metadata.json for EDA scripts
+        model_metadata = {
+            "model_type": "XGBoost Final Model",
+            "test_rmse": rmse,
+            "test_mae": mae,
+            "test_r2": r2,
+            "test_mape": mape,
+            "training_completed": True,
+            "final_params": final_params,
+            "mlflow_run_id": run_id
+        }
+        
+        # Save metadata file
+        metadata_path = os.path.join(project_root, 'Models', 'trained_models', 'model_metadata.json')
+        os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
+        with open(metadata_path, 'w') as f:
+            json.dump(model_metadata, f, indent=2)
+        logging.info(f"Model metadata saved to {metadata_path}")
+
+        # Save the trained model as pickle
+        model_save_path = os.path.join(project_root, 'Models', 'trained_models', 'final_model.pkl')
+        with open(model_save_path, 'wb') as f:
+            pickle.dump(final_model, f)
+        logging.info(f"Final model saved as pickle to {model_save_path}")
 
         # 5. Log Model with Full Artifacts
         logging.info("Logging final model to MLflow with full artifacts...")
         signature = infer_signature(X_train, preds)
-        input_example = X_train.head(5).to_dict(orient='split')
-        conda_env = {
-            'name': 'mlflow-env',
-            'channels': ['defaults', 'conda-forge'],
-            'dependencies': [
-                'python=3.8',
-                'pip',
-                {
-                    'pip': [
-                        'mlflow',
-                        f'xgboost=={xgb.__version__}',
-                        f'scikit-learn=={pd.__version__}',
-                        f'pandas=={pd.__version__}'
-                    ]
-                }
-            ]
-        }
+
 
         mlflow.xgboost.log_model(
             xgb_model=final_model,
             artifact_path="production_model",
             signature=signature,
-            input_example=input_example,
-            conda_env=conda_env,
             registered_model_name="xgboost-risk-model-prod-candidate"
         )
         logging.info("Final model logged and registered as 'xgboost-risk-model-prod-candidate'.")
 
-        # 6. Create Model Comparison Artifact
-        logging.info("Generating performance comparison artifact...")
-        model_versions = {
-            "Step 1: Tree Complexity": "xgboost-risk-model-step1",
-            "Step 2: Gamma": "xgboost-risk-model-step2",
-            "Step 3: Sampling": "xgboost-risk-model-step3",
-            "Step 4: Regularization": "xgboost-risk-model-step4",
-            "Step 5: Final Model": "xgboost-risk-model-prod-candidate"
-        }
-
-        performance_data = {}
-        for stage, model_name in model_versions.items():
-            try:
-                # Load the latest version of each registered model
-                model_uri = f"models:/{model_name}/latest"
-                model = mlflow.pyfunc.load_model(model_uri)
-                
-                # Evaluate performance
-                stage_preds = model.predict(X_test)
-                stage_rmse = np.sqrt(mean_squared_error(y_test, stage_preds))
-                performance_data[stage] = stage_rmse
-                logging.info(f"Evaluated {model_name} (latest): RMSE = {stage_rmse:.4f}")
-            except mlflow.exceptions.MlflowException as e:
-                logging.warning(f"Could not load model {model_name}. It might not be registered yet. Error: {e}")
-
-        if performance_data:
-            # Create and log the plot
-            fig, ax = plt.subplots(figsize=(10, 6))
-            stages = list(performance_data.keys())
-            rmses = list(performance_data.values())
-            ax.bar(stages, rmses, color='skyblue')
-            ax.set_ylabel('Test RMSE')
-            ax.set_title('Model Performance Improvement Across Tuning Steps')
-            ax.set_xticklabels(stages, rotation=45, ha="right")
-            plt.tight_layout()
-            mlflow.log_figure(fig, "performance_comparison.png")
-            logging.info("Performance comparison plot logged to MLflow.")
 
 if __name__ == '__main__':
     train_and_evaluate_final_model()

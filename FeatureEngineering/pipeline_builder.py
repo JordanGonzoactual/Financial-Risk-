@@ -17,6 +17,34 @@ from .transformers.column_dropper import ColumnDropper
 # Configure logger for this module
 logger = logging.getLogger(__name__)
 
+# Define expected input columns based on the RawData schema
+EXPECTED_COLUMNS = [
+    'ApplicationDate', 'Age', 'AnnualIncome', 'CreditScore', 'EmploymentStatus',
+    'EducationLevel', 'Experience', 'LoanAmount', 'LoanDuration',
+    'NumberOfDependents', 'HomeOwnershipStatus', 'MonthlyDebtPayments',
+    'CreditCardUtilizationRate', 'NumberOfOpenCreditLines', 'NumberOfCreditInquiries',
+    'DebtToIncomeRatio', 'BankruptcyHistory', 'LoanPurpose', 'PreviousLoanDefaults',
+    'PaymentHistory', 'LengthOfCreditHistory', 'SavingsAccountBalance',
+    'CheckingAccountBalance', 'TotalAssets', 'TotalLiabilities', 'MonthlyIncome',
+    'UtilityBillsPaymentHistory', 'JobTenure', 'NetWorth', 'BaseInterestRate',
+    'InterestRate', 'MonthlyLoanPayment', 'TotalDebtToIncomeRatio'
+]
+
+# Define columns to be removed based on feature importance analysis
+COLUMNS_TO_REMOVE = [
+    'LoanAmount^2',              # Polynomial feature with low importance
+    'LoanDuration',              # Original feature with low importance
+    'MaritalStatus',             # Original MaritalStatus column
+    'MaritalStatus_Married',     # Encoded marital status
+    'MaritalStatus_Single',      # Encoded marital status
+    'MaritalStatus_Widowed',     # Encoded marital status
+    'LoanPurpose',               # Original LoanPurpose column
+    'LoanPurpose_Debt Consolidation', # Encoded loan purpose
+    'LoanPurpose_Education',     # Encoded loan purpose
+    'LoanPurpose_Home',          # Encoded loan purpose
+    'LoanPurpose_Other'          # Encoded loan purpose
+]
+
 
 def identify_column_types(df: pd.DataFrame) -> Dict[str, List[str]]:
     """
@@ -66,7 +94,7 @@ def create_preprocessing_pipeline(
     numerical_features: Optional[List[str]] = None,
     categorical_features: Optional[List[str]] = None,
     date_features: Optional[List[str]] = None,
-    columns_to_drop: Optional[List[str]] = None,
+    columns_to_drop: Optional[List[str]] = COLUMNS_TO_REMOVE,
     poly_degree: int = 2,
     encoding_method: str = 'onehot',
     verbose: bool = False
@@ -152,7 +180,7 @@ def create_preprocessing_pipeline(
 
 def build_pipeline_from_dataframe(
     df: pd.DataFrame, 
-    columns_to_drop: Optional[List[str]] = None,
+    columns_to_drop: Optional[List[str]] = COLUMNS_TO_REMOVE,
     verbose: bool = False, 
     **kwargs
 ) -> Pipeline:
@@ -168,15 +196,28 @@ def build_pipeline_from_dataframe(
         Configured sklearn Pipeline object
     """
     try:
+        # First, identify and remove unknown columns (not in EXPECTED_COLUMNS)
+        unknown_columns = [col for col in df.columns if col not in EXPECTED_COLUMNS]
+        if unknown_columns:
+            logger.info(f"Removing unknown columns: {unknown_columns}")
+            df = df.drop(columns=unknown_columns)
+        
+        # Combine unknown columns with explicitly specified columns to drop
+        all_columns_to_drop = list(columns_to_drop) if columns_to_drop else []
+        all_columns_to_drop.extend(unknown_columns)
+        
         # Exclude columns that will be dropped from column type identification
-        df_filtered = df.drop(columns=columns_to_drop or [], errors='ignore')
+        if all_columns_to_drop:
+            df_filtered = df.drop(columns=all_columns_to_drop, errors='ignore')
+        else:
+            df_filtered = df
         column_types = identify_column_types(df_filtered)
         
         return create_preprocessing_pipeline(
             numerical_features=column_types.get('numerical'),
             categorical_features=column_types.get('categorical'),
             date_features=column_types.get('date'),
-            columns_to_drop=columns_to_drop,
+            columns_to_drop=all_columns_to_drop,
             verbose=verbose,
             **kwargs
         )

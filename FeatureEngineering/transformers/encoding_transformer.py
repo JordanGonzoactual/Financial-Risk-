@@ -1,35 +1,58 @@
 import pandas as pd
-from sklearn.preprocessing import OrdinalEncoder, OneHotEncoder
+from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
+import numpy as np
 from .base_transformer import BaseTransformer
 
 
 class EncodingTransformer(BaseTransformer):
     """
     Applies ordinal and one-hot encoding to categorical features.
-    - Ordinal encoding is applied to 'EducationLevel'.
-    - One-hot encoding is applied to other specified categorical columns.
+    
+    Encoding Strategy:
+    - EducationLevel (ordinal):
+      0 = High School
+      1 = Associate
+      2 = Bachelor
+      3 = Master
+      4 = Doctorate
+    - Other categoricals (one-hot):
+      * HomeOwnershipStatus
+      * EmploymentStatus
+      * LoanPurpose
     """
 
     def __init__(self, verbose=False):
         """
-        Initialize the transformer.
-        Args:
-            verbose: If True, enables detailed logging.
+        Initialize the transformer with strict ordinal encoding for EducationLevel.
+        Will preserve the 0-4 numeric mapping but ensure consistent encoding.
         """
         super().__init__(verbose=verbose)
-        self.education_mapping = ['High School', 'Associate', 'Bachelor', 'Master', 'Doctorate']
         self.ordinal_columns = ['EducationLevel']
-        self.onehot_columns = ['MaritalStatus', 'HomeOwnershipStatus', 'LoanPurpose', 'EmploymentStatus']
-
-        # Configure encoders to handle potential issues in test data
+        self.onehot_columns = ['HomeOwnershipStatus', 'EmploymentStatus', 'LoanPurpose']
+        
+        # EducationLevel ordinal encoding mapping:
+        # 0 = High School
+        # 1 = Associate
+        # 2 = Bachelor
+        # 3 = Master
+        # 4 = Doctorate
+        # Note: Input must be the original string values
+        self.education_categories = [
+            'High School',
+            'Associate',
+            'Bachelor',
+            'Master',
+            'Doctorate'
+        ]
         self.ordinal_encoder = OrdinalEncoder(
-            categories=[self.education_mapping],
+            categories=[self.education_categories],
             handle_unknown='use_encoded_value',
-            unknown_value=-1  # Use -1 for unseen categories
+            unknown_value=-1,
+            dtype=np.int8
         )
         self.onehot_encoder = OneHotEncoder(
             drop='first',
-            handle_unknown='ignore',  # Ignore unseen categories in test data
+            handle_unknown='ignore',
             sparse_output=False
         )
         self.most_frequent_categories = {}
@@ -58,41 +81,42 @@ class EncodingTransformer(BaseTransformer):
 
         # Define final output feature names
         # Start with columns that are not one-hot encoded
-        other_cols = [c for c in self.feature_names_in_ if c not in self.onehot_columns_present_]
+        other_cols = [c for c in self.feature_names_in_ if c not in self.onehot_columns_present_ and c not in self.ordinal_columns_present_]
         # Add the new one-hot feature names
         self.feature_names_out_ = other_cols + list(self.onehot_feature_names_ if hasattr(self, 'onehot_feature_names_') else [])
 
         self._log_transformation("Encoding transformer fitted successfully.")
         return self
 
-    def _transform(self, X: pd.DataFrame) -> pd.DataFrame:
-        """
-        Apply ordinal and one-hot encoding.
-        """
-        X_transformed = X
-
-        # Handle ordinal columns
-        if self.ordinal_columns_present_:
-            self._log_transformation(f"Applying ordinal encoding to {self.ordinal_columns_present_}...")
-            X_transformed[self.ordinal_columns_present_] = self.ordinal_encoder.transform(X[self.ordinal_columns_present_])
-
-        # Handle one-hot columns
+    def _transform(self, X):
+        """Transform categorical features without imputation."""
+        X = X.copy()
+        
+        # Validate no missing values
+        for col in self.ordinal_columns + self.onehot_columns:
+            if col in X.columns and X[col].isnull().any():
+                raise ValueError(f"Missing values found in {col} - imputation not allowed")
+        
+        # Ordinal encoding
+        if 'EducationLevel' in X.columns:
+            X['EducationLevel'] = self.ordinal_encoder.transform(
+                X[['EducationLevel']]
+            ).astype(int)
+            
+        # One-hot encoding
         if self.onehot_columns_present_:
-            self._log_transformation(f"Applying one-hot encoding to {self.onehot_columns_present_}...")
-            # Impute NaNs with the most frequent category before transforming
-            for col in self.onehot_columns_present_:
-                if X_transformed[col].isnull().any():
-                    fill_value = self.most_frequent_categories[col]
-                    self._log_transformation(f"Imputing NaNs in '{col}' with most frequent value: '{fill_value}'.", level='warning')
-                    X_transformed[col] = X_transformed[col].fillna(fill_value)
-
-            # Apply one-hot encoding
-            onehot_data = self.onehot_encoder.transform(X_transformed[self.onehot_columns_present_])
-            onehot_df = pd.DataFrame(onehot_data, columns=self.onehot_feature_names_, index=X_transformed.index)
-
-            # Drop original one-hot columns and concatenate new ones
-            X_transformed = X_transformed.drop(columns=self.onehot_columns_present_)
-            X_transformed = pd.concat([X_transformed, onehot_df], axis=1)
-
-        self._log_transformation("Categorical features encoded successfully.")
-        return X_transformed
+            onehot_data = self.onehot_encoder.transform(X[self.onehot_columns_present_])
+            onehot_df = pd.DataFrame(
+                onehot_data, 
+                columns=self.onehot_feature_names_, 
+                index=X.index
+            )
+            # Drop original categorical columns and add one-hot encoded columns
+            X = X.drop(columns=self.onehot_columns_present_)
+            X = pd.concat([X, onehot_df], axis=1)
+            
+        # Ensure output columns are in the expected order
+        if hasattr(self, 'feature_names_out_'):
+            X = X.reindex(columns=self.feature_names_out_)
+            
+        return X

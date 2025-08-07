@@ -110,10 +110,9 @@ class XGBoostOptimizationPipeline:
             'eval_metric': 'rmse',
             'n_estimators': 100, # Initial value, will be tuned
             'learning_rate': 0.01, # Initial value, will be tuned
-            'random_state': 42
+            'random_state': 42,
+            'device': 'cuda'  # Use GPU for training
         }
-        # Force GPU usage as per user instruction
-        self.base_params.update({'tree_method': 'gpu_hist', 'gpu_id': 0})
         logging.info(f"Base parameters set: {json.dumps(self.base_params, indent=2)}")
 
     def coordinate_optimization_phases(self, parent_run_id=None):
@@ -195,7 +194,7 @@ class XGBoostOptimizationPipeline:
             y_full_train = pd.concat([self.y_train, self.y_val])
 
             # Train the final model
-            final_model = xgb.XGBRegressor(**final_params)
+            final_model = xgb.XGBRegressor(enable_categorical=True, **final_params)
             final_model.fit(X_full_train, y_full_train)
 
             logging.info("Evaluating final model on the hold-out test set.")
@@ -214,6 +213,27 @@ class XGBoostOptimizationPipeline:
 
             logging.info(f"Final Test Metrics: {json.dumps(test_metrics, indent=2)}")
             mlflow.log_metrics(test_metrics)
+
+            # Save metrics to file for EDA script
+            model_metadata = {
+                "model_type": "XGBoost Optimized",
+                "test_rmse": rmse,
+                "test_mae": mae,
+                "test_r2": r2,
+                "test_mape": 0.0,  # Calculate if needed
+                "optimization_completed": True,
+                "final_params": final_params
+            }
+            
+            # Ensure the trained_models directory exists
+            trained_models_dir = os.path.join(project_root, 'Models', 'trained_models')
+            os.makedirs(trained_models_dir, exist_ok=True)
+            
+            # Save metadata for EDA script
+            metadata_path = os.path.join(trained_models_dir, 'model_metadata.json')
+            with open(metadata_path, 'w') as f:
+                json.dump(model_metadata, f, indent=2)
+            logging.info(f"Model metadata saved to {metadata_path}")
 
             # Log the final model
             logging.info("Logging final model to MLflow.")

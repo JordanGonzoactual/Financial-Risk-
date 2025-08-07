@@ -4,6 +4,7 @@ import json
 import logging
 import time
 import pandas as pd
+import numpy as np
 
 # Add project root to the Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -12,6 +13,17 @@ if project_root not in sys.path:
 
 from FeatureEngineering.feature_pipeline import FeaturePipeline
 from FeatureEngineering.pipeline_builder import build_pipeline_from_dataframe
+
+# Custom JSON encoder to handle NumPy data types
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NumpyEncoder, self).default(obj)
 
 # --- Configuration ---
 INPUT_FILE = 'Data/raw/Loan.csv'
@@ -99,6 +111,10 @@ def main():
         logger.info("Loading data to define pipeline structure...")
         temp_data = pd.read_csv(INPUT_FILE)
 
+        # --- Data Quality Check ---
+        logger.info("--- Data Quality Check ---")
+        logger.info(f"Loaded {len(temp_data)} records for processing.")
+
         # --- Data Validation ---
         logger.info("--- Validating Data ---")
         
@@ -136,6 +152,14 @@ def main():
         summary = feature_pipeline.run(pipeline_builder)
 
         # --- Augment Summary Report ---
+        # Create validation summary from the data checks performed above
+        validation_summary = {
+            'target_column': TARGET_COLUMN,
+            'total_records': len(temp_data),
+            'columns_to_remove': actual_columns_to_remove if 'actual_columns_to_remove' in locals() else [],
+            'initial_memory_usage_bytes': initial_memory_usage
+        }
+        summary['data_quality_validation'] = validation_summary
         logger.info("--- Generating Final Summary Report ---")
         end_time = time.time()
         final_memory_usage = pd.read_pickle(os.path.join(OUTPUT_DIR, 'X_train_processed.pkl')).memory_usage(deep=True).sum()
@@ -154,7 +178,7 @@ def main():
 
         # Save as JSON
         with open(SUMMARY_REPORT_JSON, 'w') as f:
-            json.dump(summary, f, indent=4)
+            json.dump(summary, f, indent=4, cls=NumpyEncoder)
         logger.info(f"Summary report saved to {SUMMARY_REPORT_JSON}")
 
         # Save as TXT
