@@ -1,0 +1,19 @@
+{
+    "last_completed_step": "step5_learning_rate",
+    "best_params": {
+        "objective": "reg:squarederror",
+        "eval_metric": "rmse",
+        "n_estimators": 1000,
+        "learning_rate": 0.005611516415334507,
+        "random_state": 42,
+        "device": "cuda",
+        "max_depth": 10,
+        "min_child_weight": 6.633981323438214,
+        "gamma": 4.154787443696969,
+        "subsample": 0.717105181333098,
+        "colsample_bytree": 0.9989685153263347,
+        "colsample_bylevel": 0.9805733269184415,
+        "reg_alpha": 0.03622283681593595,
+        "reg_lambda": 0.024593103542770528
+    }
+}
