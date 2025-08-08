@@ -110,7 +110,7 @@ class DataPreviewComponent:
     def render(self):
         if AppState.get_state('raw_data') is not None:
             st.header("2. Validate Data")
-            st.dataframe(AppState.get_state('raw_data').head(10))
+            # Removed duplicate preview table here (already shown in Step 1)
 
             with st.expander("View Data Statistics"):
                 st.write("**Basic Statistics:**")
@@ -161,6 +161,8 @@ class ProcessingControlsComponent:
 
     def render(self):
         st.header("3. Process for Risk Assessment")
+        # Performance checks are manual-only via the sidebar.
+
         if st.button("Run Risk Assessment"):
             self.controller.handle_assessment_processing()
 
@@ -170,13 +172,27 @@ class ResultsDashboardComponent:
         results = AppState.get_state('assessment_results')
         if results is not None:
             st.header("4. Assessment Results")
-            tab1, tab2, tab3 = st.tabs(["Summary", "Detailed Results", "Visualizations"])
+            # Performance checks are manual-only; no automatic checks here.
 
-            with tab1:
-                self._render_summary(results)
-            with tab2:
+            # Persist selected section; remove empty Summary option
+            labels = ["Detailed Results", "Visualizations"]
+            current = AppState.get_state('results_active_tab')
+            if current not in labels:
+                # Default to Visualizations when prior state was Summary or None
+                AppState.set_state('results_active_tab', 'Visualizations')
+                current = 'Visualizations'
+            default_index = labels.index(current)
+
+            selected = st.radio(
+                "View",
+                labels,
+                index=default_index,
+                key="results_active_tab",
+            )
+
+            if selected == "Detailed Results":
                 st.dataframe(results)
-            with tab3:
+            else:  # Visualizations
                 self._render_visualizations(results)
 
     def _render_summary(self, results):
@@ -193,11 +209,52 @@ class ResultsDashboardComponent:
 
     def _render_visualizations(self, results):
         st.subheader("Risk Score Distribution")
-        if 'risk_score' in results.columns:
-            fig = px.histogram(results, x='risk_score', nbins=20, title="Distribution of Risk Scores")
-            st.plotly_chart(fig, use_container_width=True)
-        else:
+        # Prefer the predictions column produced by the API client
+        score_col = None
+        for c in ['prediction', 'risk_score', 'RiskScore']:
+            if c in results.columns:
+                score_col = c
+                break
+
+        if score_col is None:
             st.info("Risk score data not available for visualization.")
+            return
+
+        chart_type = st.selectbox("Chart type", ["Box", "Histogram"], index=0, key="risk_chart_type")
+        st.caption("Scores are expected to be in the 0–100 range.")
+
+        if chart_type == "Histogram":
+            bins = st.slider("Bins", min_value=10, max_value=100, value=30, step=5)
+            fig = px.histogram(
+                results,
+                x=score_col,
+                nbins=bins,
+                title="Risk Score Distribution",
+                labels={score_col: "Risk Score (0–100)"},
+            )
+            fig.update_layout(xaxis=dict(range=[0, 100]))
+        elif chart_type == "Box":
+            fig = px.box(
+                results,
+                y=score_col,
+                points="outliers",
+                title="Risk Score Box Plot",
+                labels={score_col: "Risk Score (0–100)"},
+            )
+            fig.update_layout(yaxis=dict(range=[0, 100]))
+       
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Quick stats
+        try:
+            s = results[score_col].astype(float)
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Mean", f"{s.mean():.2f}")
+            c2.metric("Median", f"{s.median():.2f}")
+            c3.metric("Std Dev", f"{s.std(ddof=0):.2f}")
+        except Exception:
+            pass
 
 class DownloadManagerComponent:
     """Provides options to download the results."""
