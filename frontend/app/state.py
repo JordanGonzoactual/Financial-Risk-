@@ -8,6 +8,8 @@ class AppState:
         'validation_report': None,
         'uploaded_file_name': None,
         'csv_content': None,  # Added to store the raw CSV string for the API
+        'performance_last_results': None,
+        'performance_last_checked_at': None,
     }
 
     @staticmethod
