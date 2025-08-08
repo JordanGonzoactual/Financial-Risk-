@@ -344,10 +344,10 @@ pytest Tests/ --cov=. --cov-report=html
 ## 📊 Performance Metrics
 
 ### Model Performance
-- **RMSE**: 2.4 (optimized through hyperparameter tuning)
-- **MAE**: 1.43
-- **R² Score**: > 0.90
-- **MAPE**: < 8%
+- **RMSE**: 2.17 (optimized through hyperparameter tuning)
+- **MAE**: 1.23
+- **R² Score**: > 0.92
+- **MAPE**: < 3%
 - **Prediction Time**: < 100ms per batch (1000 records)
 
 ### Baseline Model Comparison Results
@@ -394,7 +394,6 @@ MLFLOW_TRACKING_URI=http://localhost:5000
 
 ### Scaling Considerations
 - **Horizontal Scaling**: Load balancer with multiple Flask instances
-- **Database**: Migrate from SQLite to PostgreSQL for production
 - **Caching**: Redis for prediction result caching
 - **Monitoring**: Prometheus + Grafana for system monitoring
 
@@ -419,10 +418,10 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## 🙋‍♂️ Support
 
 For questions, issues, or contributions:
-- **Email**: [your-email@domain.com]
-- **Issues**: GitHub Issues page
+- **Linkedin**: www.linkedin.com/in/jordan-gonzalez-36a117243
 - **Documentation**: See `/docs` directory for detailed documentation
 
 ---
 
 **Built with ❤️ for the financial technology community**
+
