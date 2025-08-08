@@ -1,0 +1,58 @@
+# Git files
+.git
+.gitignore
+
+# DVC files
+.dvc
+.dvcignore
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Test and coverage files
+.pytest_cache/
+.coverage
+htmlcov/
+Tests/
+
+# IDE and environment files
+.vscode/
+.idea/
+.env
+.windsurf/
+
+# Logs
+logs/
+*.log
+feature_engineering.log
+
+# Jupyter notebooks and analysis
+*.ipynb
+EDA/
+Analysis/
+
+# MLflow artifacts (will be generated in container)
+mlruns/
+mlflow-artifacts/
+mlruns.db
+mlflow.db
+
+# Results and temporary files
+Results/
+artifacts/
+*.html
+# Models/
+
+# Notebooks and EDA
+Notebooks/
+EDA/
+
+# Reports
+*.html
+
+# Other
+mlruns/
+mlflow-artifacts/
