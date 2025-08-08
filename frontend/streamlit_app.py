@@ -1,6 +1,10 @@
 import sys
 import os
 
+# Force CPU to prevent GPU/CPU device mismatches that can crash
+# the app when XGBoost or other libs initialize CUDA by default.
+os.environ.setdefault('CUDA_VISIBLE_DEVICES', '-1')
+
 # Add the frontend directory to the Python path to resolve module import issues
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
@@ -84,4 +88,5 @@ if __name__ == "__main__":
     controller = AppController()
     app = RiskAssessmentApp(views, controller)
     app.run()
-    logger.info("Application finished.")
+    # In Streamlit, the script is re-run on interactions; avoid a misleading
+    # "Application finished" message that looks like shutdown.

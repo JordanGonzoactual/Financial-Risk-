@@ -4,6 +4,8 @@ import logging
 import sys
 from threading import Lock
 import pandas as pd
+# Force CPU for XGBoost to avoid GPU/CPU device mismatches in production UI
+os.environ.setdefault('CUDA_VISIBLE_DEVICES', '-1')
 import xgboost as xgb
 from FeatureEngineering.inference_pipeline import InferencePipeline
 
@@ -44,6 +46,30 @@ class ModelService:
             with open(model_file, 'rb') as f:
                 self.model = pickle.load(f)
             logging.info("Successfully loaded XGBoost model.")
+
+            # Ensure model uses CPU predictors to avoid GPU device mismatches
+            try:
+                if hasattr(self.model, 'set_params'):
+                    try:
+                        self.model.set_params(device='cpu')
+                    except Exception:
+                        pass
+                    try:
+                        self.model.set_params(predictor='cpu_predictor')
+                    except Exception:
+                        pass
+                    try:
+                        self.model.set_params(tree_method='hist')
+                    except Exception:
+                        pass
+                try:
+                    booster = self.model.get_booster()
+                    booster.set_param({'predictor': 'cpu_predictor'})
+                except Exception:
+                    pass
+            except Exception:
+                # Best-effort CPU selector; ignore if model doesn't support these params
+                pass
 
             # Load Preprocessing Pipeline
             artifacts_dir = os.path.join(project_root, 'FeatureEngineering', 'artifacts')
@@ -93,7 +119,40 @@ class ModelService:
             
             # 2. Make predictions
             logging.info("Generating predictions on engineered features...")
-            predictions = self.model.predict(df_processed)
+            try:
+                predictions = self.model.predict(df_processed)
+            except Exception as e:
+                msg = str(e)
+                if 'cuda' in msg.lower() or 'device' in msg.lower():
+                    logging.warning(
+                        "GPU/device prediction failed; falling back to CPU predictor.",
+                        exc_info=True,
+                    )
+                    try:
+                        if hasattr(self.model, 'set_params'):
+                            try:
+                                self.model.set_params(device='cpu')
+                            except Exception:
+                                pass
+                            try:
+                                self.model.set_params(predictor='cpu_predictor')
+                            except Exception:
+                                pass
+                            try:
+                                self.model.set_params(tree_method='hist')
+                            except Exception:
+                                pass
+                        try:
+                            booster = self.model.get_booster()
+                            booster.set_param({'predictor': 'cpu_predictor'})
+                        except Exception:
+                            pass
+                        predictions = self.model.predict(df_processed)
+                    except Exception:
+                        logging.error("CPU fallback prediction failed.", exc_info=True)
+                        raise
+                else:
+                    raise
             logging.info(f"Successfully generated {len(predictions)} predictions.")
             
             return pd.Series(predictions, index=df_raw.index)
