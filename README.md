@@ -159,8 +159,7 @@ The comprehensive EDA report includes:
 
 - **Distribution plots** for all numerical features
 - **Correlation heatmaps** showing feature relationships
-- **Box plots** for outlier identification
-- **Temporal analysis** of application patterns
+- **Interaction Plots** for variable to target interactions
 - **Target variable analysis** with risk score distributions
 
 *Note: Full interactive EDA report available at `EDA/processed_loan_analysis_report.html`*
@@ -424,4 +423,5 @@ For questions, issues, or contributions:
 ---
 
 **Built with ❤️ for the financial technology community**
+
 
